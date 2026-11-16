@@ -21,7 +21,7 @@ def validate_storyboard(value):
         duration = scene.get('duration_seconds')
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or not 2 <= duration <= 30:
             raise StoryboardError(f'第{index}幕时长需在2到30秒之间')
-        if scene.get('type', 'concept') not in ('concept', 'comparison', 'matrix', 'summary'):
+        if scene.get('type', 'concept') not in ('concept', 'comparison', 'matrix', 'summary', 'flow'):
             raise StoryboardError(f'第{index}幕动画类型无效')
         if scene.get('type') == 'matrix':
             data = scene.get('data') or {}

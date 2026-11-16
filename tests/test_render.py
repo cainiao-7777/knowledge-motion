@@ -28,3 +28,8 @@ class RenderTests(unittest.TestCase):
         other={**scene,'data':{'left':'苹果','right':'香蕉'}}
         from PIL import ImageChops
         self.assertIsNotNone(ImageChops.difference(draw_scene('主题',scene,0.7,1,1),draw_scene('主题',other,0.7,1,1)).getbbox())
+    def test_flow_nodes_change_the_visual(self):
+        scene={'text':'数据如何查找','visual_description':'按步骤展示','duration_seconds':8,'type':'flow','data':{'nodes':['输入','查索引','找到记录']}}
+        other={**scene,'data':{'nodes':['请求','读取缓存','返回结果']}}
+        from PIL import ImageChops
+        self.assertIsNotNone(ImageChops.difference(draw_scene('主题',scene,0.7,1,1),draw_scene('主题',other,0.7,1,1)).getbbox())

@@ -1,14 +1,82 @@
 [
- {"text":"什么是机会成本","visual_description":"解释核心概念","label":"concept"},
- {"text":"合作和背叛有不同结果","visual_description":"左右比较两个选择","label":"comparison"},
- {"text":"回顾今天的主要观点","visual_description":"结尾总结","label":"summary"},
- {"text":"黑洞的事件视界","visual_description":"解释术语含义","label":"concept"},
- {"text":"机械硬盘和固态硬盘","visual_description":"对比两类设备的特点","label":"comparison"},
- {"text":"记住这个方法的限制","visual_description":"总结并提示适用范围","label":"summary"},
- {"text":"什么是数据库索引","visual_description":"介绍索引基本概念","label":"concept"},
- {"text":"有索引和无索引的查询","visual_description":"比较两种查询方式","label":"comparison"},
- {"text":"最后回顾三个关键点","visual_description":"列出结论","label":"summary"},
- {"text":"空气为什么会产生浮力","visual_description":"引入基础物理现象","label":"concept"},
- {"text":"短期利益与长期收益","visual_description":"并排展示两种情况","label":"comparison"},
- {"text":"一个决定要看机会成本","visual_description":"结尾归纳并提醒例外","label":"summary"}
+  {
+    "text": "什么是机会成本",
+    "visual_description": "解释核心概念",
+    "label": "concept"
+  },
+  {
+    "text": "合作和背叛有不同结果",
+    "visual_description": "左右比较两个选择",
+    "label": "comparison"
+  },
+  {
+    "text": "回顾今天的主要观点",
+    "visual_description": "结尾总结",
+    "label": "summary"
+  },
+  {
+    "text": "黑洞的事件视界",
+    "visual_description": "解释术语含义",
+    "label": "concept"
+  },
+  {
+    "text": "机械硬盘和固态硬盘",
+    "visual_description": "对比两类设备的特点",
+    "label": "comparison"
+  },
+  {
+    "text": "记住这个方法的限制",
+    "visual_description": "总结并提示适用范围",
+    "label": "summary"
+  },
+  {
+    "text": "什么是数据库索引",
+    "visual_description": "介绍索引基本概念",
+    "label": "concept"
+  },
+  {
+    "text": "有索引和无索引的查询",
+    "visual_description": "比较两种查询方式",
+    "label": "comparison"
+  },
+  {
+    "text": "最后回顾三个关键点",
+    "visual_description": "列出结论",
+    "label": "summary"
+  },
+  {
+    "text": "空气为什么会产生浮力",
+    "visual_description": "引入基础物理现象",
+    "label": "concept"
+  },
+  {
+    "text": "短期利益与长期收益",
+    "visual_description": "并排展示两种情况",
+    "label": "comparison"
+  },
+  {
+    "text": "一个决定要看机会成本",
+    "visual_description": "结尾归纳并提醒例外",
+    "label": "summary"
+  },
+  {
+    "text": "数据库查找的三个步骤",
+    "visual_description": "依次显示输入、检索索引、返回记录",
+    "label": "flow"
+  },
+  {
+    "text": "水循环如何发生",
+    "visual_description": "按照蒸发、凝结、降水的顺序演示",
+    "label": "flow"
+  },
+  {
+    "text": "软件如何运行",
+    "visual_description": "逐步展示编译和运行的先后顺序",
+    "label": "flow"
+  },
+  {
+    "text": "快递的运输过程",
+    "visual_description": "按时间线展示取件、运输、派送",
+    "label": "flow"
+  }
 ]

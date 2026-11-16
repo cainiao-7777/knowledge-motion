@@ -9,7 +9,7 @@ from src.generator import generate_storyboard
 from src.render import render_video
 from src.beats import analyze_music
 from src.timeline import align_scenes
-from src.classifier import classify_scenes
+from src.classifier import classify_scenes, apply_scene_labels
 
 DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
 
@@ -27,8 +27,7 @@ def create_video_project(root, topic):
         project['storyboard']=generate_storyboard(topic,project['sources'])
         project['status']='classifying'; save_project(root,project)
         scenes=project['storyboard']['scenes']
-        for scene, label in zip(scenes, classify_scenes(scenes)):
-            scene['type']=label
+        project['layout_choices']=apply_scene_labels(scenes, classify_scenes(scenes))
         project['status']='rendering'; save_project(root,project)
         if not DEFAULT_MUSIC.is_file():
             raise FileNotFoundError('指定背景音乐不存在，请确认音乐文件路径')
@@ -56,8 +55,7 @@ def revise_video_project(root, project_id, instruction):
     try:
         project['status']='revising'; project.pop('revision_error',None); save_project(root,project)
         revised=generate_storyboard(project['topic'],project['sources'],previous=old_storyboard,revision=instruction)
-        for scene, label in zip(revised['scenes'],classify_scenes(revised['scenes'])):
-            scene['type']=label
+        layout_choices=apply_scene_labels(revised['scenes'],classify_scenes(revised['scenes']))
         beats=analyze_music(DEFAULT_MUSIC)
         scenes=revised['scenes']
         boundaries=align_scenes([s['duration_seconds'] for s in scenes],beats)
@@ -70,6 +68,7 @@ def revise_video_project(root, project_id, instruction):
         shutil.copy2(old_video,folder/f'video-before-edit-{version}.mp4')
         os.replace(candidate,old_video)
         project['storyboard']=revised
+        project['layout_choices']=layout_choices
         project.setdefault('notes',[]).append(instruction)
     except Exception as exc:
         project['revision_error']=str(exc) or '修改失败，原视频已保留'

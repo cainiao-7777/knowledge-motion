@@ -4,14 +4,16 @@ import os
 import shutil
 import subprocess
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from src.storyboard import validate_storyboard
 from src.style import choose_palette, contrast
 from src.audio import create_effects_track
 
-WIDTH, HEIGHT, FPS = 1280, 720, 12
+WIDTH, HEIGHT, FPS = 1280, 720, 24
 
+@lru_cache(maxsize=16)
 def font(size):
     for candidate in ('C:/Windows/Fonts/msyh.ttc','C:/Windows/Fonts/simhei.ttf'):
         if Path(candidate).exists():
@@ -63,6 +65,16 @@ def draw_scene(title, scene, progress, index, count, palette=None):
             x, y = 865 + (i % 2) * 160, 210 + (i // 2) * 108
             d.rounded_rectangle((x,y,x+145,y+95),radius=8,outline=(95,88,129),width=2)
             d.text((x+18,y+26),cell,font=font(28),fill=foreground)
+    elif scene.get('type') == 'flow':
+        data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
+        nodes=data.get('nodes') if isinstance(data.get('nodes'),list) else []
+        labels=[x for x in nodes if isinstance(x,str) and x.strip()][:3]
+        if not labels: labels=['步骤 1','步骤 2','步骤 3']
+        for i,label in enumerate(labels):
+            y=210+i*100
+            d.rounded_rectangle((870,y,1180,y+68),radius=10,outline=(95,88,129),width=2)
+            d.text((895,y+16),label[:12],font=font(24),fill=accent if progress >= i*0.2 else secondary)
+            if i<len(labels)-1: d.line((1025,y+70,1025,y+98),fill=accent,width=2)
     elif scene.get('type') == 'comparison':
         data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
         labels=[data.get('left','A'),data.get('right','B')]

@@ -9,7 +9,7 @@ import urllib.request
 
 class ClassificationError(RuntimeError): pass
 
-LABELS={'concept','comparison','summary'}
+LABELS={'concept','comparison','summary','flow'}
 DEFAULT_MODEL='modelscope.cn/unsloth/Qwen3.5-0.8B-GGUF:latest'
 
 def parse_labels(text, count):
@@ -21,16 +21,40 @@ def parse_labels(text, count):
         raise ClassificationError('小模型返回的类别无效或数量不匹配')
     return labels
 
+def apply_scene_labels(scenes, labels):
+    if len(scenes) != len(labels):
+        raise ClassificationError('小模型类别数量与分镜不匹配')
+    report=[]
+    for scene, label in zip(scenes,labels):
+        if label not in LABELS:
+            raise ClassificationError('小模型返回的分镜类别无效')
+        data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
+        chosen=label
+        if label == 'flow':
+            nodes=data.get('nodes')
+            if not isinstance(nodes,list) or len([x for x in nodes if isinstance(x,str) and x.strip()]) < 2:
+                chosen='concept'
+        elif label == 'comparison':
+            if not all(isinstance(data.get(x),str) and data[x].strip() for x in ('left','right')):
+                chosen='concept'
+        scene['type']=chosen
+        report.append({'predicted':label,'chosen':chosen})
+    return report
+
 def classify_scenes(scenes):
-    descriptions=[{'text':x['text'],'description':x['visual_description']} for x in scenes]
-    prompt=('Classify each scene as concept, comparison or summary. Return ONLY a JSON array of labels, one per scene, same order. '
-            'concept=explain idea; comparison=compare alternatives; summary=conclusion.\nScenes: '
-            + json.dumps(descriptions,ensure_ascii=False))
-    schema={'type':'object','properties':{'labels':{'type':'array','items':{'type':'string','enum':sorted(LABELS)},'minItems':len(scenes),'maxItems':len(scenes)}},'required':['labels']}
-    payload={'model':os.environ.get('SMALL_MODEL',DEFAULT_MODEL),'prompt':prompt,'stream':False,'think':False,'format':schema,'options':{'num_predict':180,'num_ctx':4096,'temperature':0}}
-    req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=json.dumps(payload,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
-    try:
-        with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)
-        return parse_labels(result.get('response',''),len(scenes))
-    except (OSError,ValueError) as exc:
-        raise ClassificationError('本地小模型调用失败，请检查 Ollama 和模型') from exc
+    labels=[]
+    schema={'type':'object','properties':{'label':{'type':'string','enum':sorted(LABELS)}},'required':['label']}
+    for scene in scenes:
+        description={'text':scene['text'],'description':scene['visual_description']}
+        prompt=('Choose exactly one label: concept=definition; comparison=compare alternatives; '
+                'flow=sequence of steps; summary=conclusion. Scene: '+json.dumps(description,ensure_ascii=False))
+        payload={'model':os.environ.get('SMALL_MODEL',DEFAULT_MODEL),'prompt':prompt,'stream':False,'think':False,'format':schema,'options':{'num_predict':50,'num_ctx':2048,'temperature':0}}
+        req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=json.dumps(payload,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
+        try:
+            with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)
+            label=json.loads(result.get('response','')).get('label')
+            if label not in LABELS: raise ClassificationError('小模型返回的分镜类别无效')
+            labels.append(label)
+        except (OSError,ValueError,AttributeError) as exc:
+            raise ClassificationError('本地小模型调用失败，请检查 Ollama 和模型') from exc
+    return labels

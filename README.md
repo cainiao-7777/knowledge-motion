@@ -26,7 +26,7 @@ python app.py
 - `app.py` 和 `web/index.html`：本机网页、任务提交和作品展示。
 - `src/research.py`：查找并记录来源；结果是检索摘要，不等于事实已经核实。
 - `src/generator.py`：调用百炼 `qwen4-max`，把结果解析为分镜；`src/storyboard.py` 检查标题、时长与数据。
-- `src/classifier.py`：本地小模型选择概念、对比或总结画面，结果需用数据集测试。
+- `src/classifier.py`：本地小模型选择概念、对比、流程或总结画面，结果需用数据集测试。
 - `src/beats.py`、`src/timeline.py`：粗略估计音乐中的低频强调点并调整分镜时间，不保证精确击中鼓点。
 - `src/render.py`、`src/audio.py`：绘制文字图形、合成转场、音乐和短音效，导出 MP4。
 - `src/projects.py` 和 `src/pipeline.py`：保存作品状态、来源和修改记录，安排生成步骤。

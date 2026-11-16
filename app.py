@@ -49,6 +49,11 @@ class Handler(BaseHTTPRequestHandler):
         path=urlsplit(self.path).path
         if path=='/':
             return self.respond(200,(ROOT/'web'/'index.html').read_bytes(),'text/html; charset=utf-8')
+        assets={'/assets/style.css':('style.css','text/css; charset=utf-8'),
+                '/assets/app.js':('app.js','text/javascript; charset=utf-8')}
+        if path in assets:
+            name,mime=assets[path]
+            return self.respond(200,(ROOT/'web'/name).read_bytes(),mime)
         if path=='/api/projects':
             return self.reply_json(200,list_projects(OUTPUT))
         parts=path.strip('/').split('/')
