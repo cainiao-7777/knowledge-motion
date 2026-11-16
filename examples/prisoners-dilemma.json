@@ -1,0 +1,8 @@
+{
+  "title":"囚徒困境",
+  "scenes":[
+    {"text":"个人理性，未必带来共同最优","visual_description":"当双方各自做出选择，结果可能出乎意料。","duration_seconds":4,"type":"concept","data":{}},
+    {"text":"每个人都有合作与背叛两种选择","visual_description":"选择的结果，取决于双方如何行动。","duration_seconds":4,"type":"comparison","data":{}},
+    {"text":"重复互动可能改变彼此的选择","visual_description":"结论取决于收益、规则和互动条件。","duration_seconds":4,"type":"summary","data":{}}
+  ]
+}
