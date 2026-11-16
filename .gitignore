@@ -1,0 +1,16 @@
+# 本地配置、模型、数据和生成作品不进入版本库
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+outputs/
+data/*
+!data/README.md
+*.mp3
+*.mp4
+*.wav
+*.safetensors
+*.pt
+*.pth
