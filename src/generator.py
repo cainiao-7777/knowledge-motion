@@ -44,8 +44,8 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
     prompt = ('为普通大众制作无旁白中文知识动画，依据资料编写约60秒共5幕。只输出JSON对象：'
               '{"title":"标题","palette":{"background":"#101326","accent":"#c8adff"},"scenes":[{"text":"不超过30字的屏幕文字",'
               '"caption":"不超过45字的补充解释，供观众阅读",'
-              '"visual_description":"供系统使用的画面描述，不会显示给观众","duration_seconds":12,"type":"concept","data":{}}]}。'
-              'palette按主题设计背景与强调色，均为六位十六进制颜色且保持较高对比度。所有type均为concept，使用文字解释，不要虚构事实、数字和引用。\n主题：'+topic+'\n资料：\n'+source_text)
+              '"visual_description":"供系统使用的画面描述，不会显示给观众","duration_seconds":12,"type":"concept","data":{"left":"对比左侧短标签","right":"对比右侧短标签"}}]}。'
+              'palette按主题设计背景与强调色，均为六位十六进制颜色且保持较高对比度。只有明确涉及两项对比的分镜才填写data中的left和right（每个最多7个字），其余data使用空对象。所有type均为concept，使用文字解释，不要虚构事实、数字和引用。\n主题：'+topic+'\n资料：\n'+source_text)
     if previous is not None and revision:
         prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(previous, ensure_ascii=False) + '\n修改意见：' + revision
     body = json.dumps({'model':model,'messages':[{'role':'user','content':prompt}], 'max_tokens':2500, 'temperature':0.5},ensure_ascii=False).encode('utf-8')

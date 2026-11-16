@@ -64,9 +64,15 @@ def draw_scene(title, scene, progress, index, count, palette=None):
             d.rounded_rectangle((x,y,x+145,y+95),radius=8,outline=(95,88,129),width=2)
             d.text((x+18,y+26),cell,font=font(28),fill=foreground)
     elif scene.get('type') == 'comparison':
+        data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
+        labels=[data.get('left','A'),data.get('right','B')]
         for side, x in enumerate((862,1036)):
             d.rounded_rectangle((x,245,x+145,425),radius=12,outline=(95,88,129),width=2)
-            d.text((x+50,302),'A' if side == 0 else 'B',font=font(48),fill=accent)
+            label=labels[side] if isinstance(labels[side],str) and labels[side].strip() else ('A' if side == 0 else 'B')
+            label_face=font(25)
+            for j,line in enumerate(wrapped(d,label[:14],label_face,120)[:2]):
+                width=d.textlength(line,font=label_face)
+                d.text((x+(145-width)/2,302+j*34),line,font=label_face,fill=accent)
         d.line((1008,335,1035,335),fill=accent,width=2)
     else:
         # Progress arc is drawn from time, so frames are deterministic.

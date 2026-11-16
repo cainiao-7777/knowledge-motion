@@ -23,3 +23,8 @@ class RenderTests(unittest.TestCase):
         compared={**scene,'type':'comparison'}
         from PIL import ImageChops
         self.assertIsNotNone(ImageChops.difference(draw_scene('主题',scene,0.5,1,1),draw_scene('主题',compared,0.5,1,1)).getbbox())
+    def test_comparison_labels_affect_visual(self):
+        scene={'text':'两个方案','visual_description':'对比','duration_seconds':8,'type':'comparison','data':{'left':'合作','right':'背叛'}}
+        other={**scene,'data':{'left':'苹果','right':'香蕉'}}
+        from PIL import ImageChops
+        self.assertIsNotNone(ImageChops.difference(draw_scene('主题',scene,0.7,1,1),draw_scene('主题',other,0.7,1,1)).getbbox())
