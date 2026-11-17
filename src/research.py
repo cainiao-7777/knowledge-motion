@@ -56,7 +56,7 @@ def normalize_results(results):
         output.append({'title':item['title'],'url':url,'snippet':item.get('snippet',''), 'accessed':datetime.date.today().isoformat()})
     return output
 
-def rank_sources(sources, query, is_book, candidates=()):
+def rank_sources(sources, query, is_book, candidates=(), prefer_best=False):
     keys=[re.sub(r'\s+','',x).casefold() for x in (query,*candidates) if x]
     unrelated=('电视剧','電視劇','韓國電視劇','漫画','漫畫','专辑','專輯')
     def score(source):
@@ -71,6 +71,13 @@ def rank_sources(sources, query, is_book, candidates=()):
         if '消歧義' in source['title'] or '消歧义' in source['title']: points-=15
         return points
     ranked=sorted(sources,key=score,reverse=True)
+    if prefer_best and ranked:
+        candidate_keys={re.sub(r'\s+','',x).casefold() for x in (query,*candidates)}
+        exact=[s for s in ranked if re.sub(r'\s+','',s['title']).casefold() in candidate_keys]
+        if exact:
+            return exact[:3]
+        best=score(ranked[0])
+        ranked=[s for s in ranked if score(s)>0 and score(s)>=best-2][:3]
     ranked=[s for s in ranked if score(s)>0]
     return ranked
 
@@ -162,7 +169,7 @@ def search_sources(topic):
         if identity not in seen:
             unique.append(source);seen.add(identity)
     if unique:
-        ranked=rank_sources(unique,core,is_book,candidates)
+        ranked=rank_sources(unique,core,is_book,candidates,prefer_best=bool(candidates))
         if ranked:
             return ranked[:8]
     if wiki_failures==len(languages) and (is_book or not items):
