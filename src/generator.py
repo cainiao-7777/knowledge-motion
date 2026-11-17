@@ -53,7 +53,7 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
               '讲解要有层次，不要停留在定义、口号或剧情简介：选择值得解释的核心问题，说明背景、机制、矛盾或人物处境如何联系，给出资料支持的具体例子，并指出结论成立的条件或适用边界。'
               '每幕推进新信息，避免重复摘要；有限时长里讲透一个核心问题，不罗列浅层知识点。'
               '只输出JSON对象，包含字段：title（标题）；narrative_arc（本主题实际采用的叙事推进说明）；art_direction（本主题专属的风格描述、视觉隐喻、自由描述构图composition、背景色background、强调色accent、辅助色secondary、纹理motif）；scenes（按本主题需要决定数量的分镜数组）。'
-              '每个scene包含text（观众看到的主文字）、caption（更细腻的补充解释）、visual_description（具体构图、元素、运动和转场意图）、duration_seconds（本幕时长）及data（只有图形确实需要的数据才填写）。'
+              '每个scene包含text（语义完整、尽量精炼的观众主文字，复杂内容可自然换行）、caption（可有层次地补充背景、因果或边界，最多约90个中文字）、visual_description（具体构图、元素、运动和转场意图）、duration_seconds（本幕时长）及data（只有图形确实需要的数据才填写）。不要留下半句话或未完成的列表项。'
               '不要在输出中照抄字段说明或使用占位文字。风格由主题决定：文学作品可以考虑人物视角、留白、纸本文学或心理意象；科学概念可考虑空间、尺度或过程，但这些只是可能性，不是规定。请为当前主题重新判断，不要沿用其他主题的配色和叙事。'
               '渲染器会依据visual_description与data把分镜转成可用的图形画面；描述应具体可画。图形数据必须来自资料或明确标为示意，不得伪造数字、引用或因果。'
               '没有资料支持的细节要收窄结论，并在caption说明不确定性。'

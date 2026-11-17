@@ -56,7 +56,7 @@ def classify_scenes(scenes):
         description={'text':scene['text'],'description':scene['visual_description']}
         prompt=('Choose exactly one label: concept=definition; comparison=compare alternatives; '
                 'flow=sequence of steps; summary=conclusion. Scene: '+json.dumps(description,ensure_ascii=False))
-        payload={'model':os.environ.get('SMALL_MODEL',DEFAULT_MODEL),'prompt':prompt,'stream':False,'think':False,'format':schema,'options':{'num_predict':50,'num_ctx':2048,'temperature':0}}
+        payload={'model':os.environ.get('SMALL_MODEL',DEFAULT_MODEL),'prompt':prompt,'stream':False,'think':False,'format':schema,'options':{'num_predict':80,'num_ctx':4096,'temperature':0}}
         req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=json.dumps(payload,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
         try:
             with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)

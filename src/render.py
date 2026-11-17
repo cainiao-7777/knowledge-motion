@@ -126,23 +126,38 @@ def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.
     title_x=(WIDTH-d.textlength(title_text,font=title_face))/2 if layout=='center' else 72 if layout=='asymmetric' else 64
     title_y=105 if layout=='center' else 145 if layout=='asymmetric' else 140
     d.text((title_x,title_y),title_text,font=title_face,fill=accent)
-    heading=font(55)
     text_width=980 if layout=='center' else 650 if layout=='asymmetric' else 750
-    lines=wrapped(d,scene['text'],heading,text_width)
-    if len(lines)>4:
-        heading=font(42)
-        lines=wrapped(d,scene['text'],heading,text_width)
-    if len(lines)>5:
-        raise ValueError('分镜文字过长，请缩短后重新生成')
     y=190 if layout=='center' else 285 if layout=='asymmetric' else 210
+    available_height=520-y
+    heading=None;lines=[];line_height=0
+    for size in (56,50,44,38,34,30,26,22):
+        candidate=font(size)
+        candidate_lines=wrapped(d,scene['text'],candidate,text_width)
+        candidate_line_height=round(size*1.28)
+        if len(candidate_lines)*candidate_line_height<=available_height:
+            heading=candidate;lines=candidate_lines;line_height=candidate_line_height
+            break
+    if heading is None:
+        raise ValueError('这幕主文字仍无法排入画面，请拆成更多分镜')
     for line in lines:
         text_x=(WIDTH-d.textlength(line,font=heading))/2 if layout=='center' else 82 if layout=='asymmetric' else 64
         d.text((text_x,y),line,font=heading,fill=foreground)
-        y+=72 if heading.size==55 else 58
-    sub=font(23)
-    for j,line in enumerate(wrapped(d,scene.get('caption',''),sub,900 if layout=='center' else 720 if layout=='asymmetric' else 740)[:3]):
+        y+=line_height
+    caption_width=900 if layout=='center' else 720 if layout=='asymmetric' else 740
+    caption_text=scene.get('caption','')
+    sub=None;caption_lines=[];caption_line_height=0
+    for size in (22,20,18,16):
+        candidate=font(size)
+        candidate_lines=wrapped(d,caption_text,candidate,caption_width)
+        candidate_line_height=round(size*1.35)
+        if len(candidate_lines)*candidate_line_height<=100:
+            sub=candidate;caption_lines=candidate_lines;caption_line_height=candidate_line_height
+            break
+    if sub is None:
+        sub=font(16);caption_lines=wrapped(d,caption_text,sub,caption_width)[:4];caption_line_height=22
+    for j,line in enumerate(caption_lines):
         caption_x=(WIDTH-d.textlength(line,font=sub))/2 if layout=='center' else 82 if layout=='asymmetric' else 67
-        d.text((caption_x, 552+j*33 if layout=='center' else 540+j*33),line,font=sub,fill=secondary)
+        d.text((caption_x, 540+j*caption_line_height),line,font=sub,fill=secondary)
     if scene.get('type') == 'matrix':
         cells = scene['data']['cells']
         for i, cell in enumerate(cells):
@@ -186,6 +201,22 @@ def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.
     d.line((64,651,64+int(1152*((index-1+progress)/count)),651),fill=accent,width=3)
     return image
 
+def apply_rhythm_motion(image, intensity, beat_index):
+    """Add a brief, deterministic punch-in and camera nudge on musical accents."""
+    if intensity < 0.03:
+        return image
+    width,height=image.size
+    scale=1.0+0.018*intensity
+    scaled=image.resize((round(width*scale),round(height*scale)),Image.Resampling.LANCZOS)
+    extra_x=scaled.width-width
+    extra_y=scaled.height-height
+    direction=-1 if beat_index%2 else 1
+    nudge_x=round(4*intensity*direction)
+    nudge_y=round(3*intensity*(1 if beat_index%3==0 else -1))
+    left=max(0,min(extra_x,extra_x//2+nudge_x))
+    top=max(0,min(extra_y,extra_y//2+nudge_y))
+    return scaled.crop((left,top,left+width,top+height))
+
 def render_video(storyboard, destination, music=None, beats=None):
     validate_storyboard(storyboard)
     if not shutil.which('ffmpeg'):
@@ -205,9 +236,12 @@ def render_video(storyboard, destination, music=None, beats=None):
                 count=round(scene['duration_seconds']*FPS)
                 for frame in range(count):
                     global_time=elapsed+frame/FPS
-                    beat_pulse=max((math.exp(-((global_time-beat)/0.075)**2) for beat in beats if abs(global_time-beat)<0.18),default=0.0)
+                    active=[(beat_index,beat) for beat_index,beat in enumerate(beats) if abs(global_time-beat)<0.18]
+                    beat_index,nearest=min(active,key=lambda item:abs(global_time-item[1])) if active else (-1,None)
+                    beat_pulse=math.exp(-((global_time-nearest)/0.075)**2) if nearest is not None else 0.0
                     art_direction=storyboard.get('art_direction',storyboard.get('palette'))
                     image=draw_scene(storyboard['title'],scene,frame/max(1,count-1),index,len(storyboard['scenes']),art_direction,beat_pulse)
+                    image=apply_rhythm_motion(image,beat_pulse,beat_index)
                     if previous is not None and frame < FPS//2:
                         image=Image.blend(previous,image,(frame+1)/(FPS//2))
                     proc.stdin.write(image.tobytes())
