@@ -29,6 +29,7 @@ def create_video_project(root, topic):
         (folder/'sources.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
         project['status']='writing'; save_project(root,project)
         project['storyboard']=generate_storyboard(topic,project['sources'])
+        project['warnings']=project['storyboard'].get('normalization_warnings',[])
         project['status']='classifying'; save_project(root,project)
         scenes=project['storyboard']['scenes']
         project['layout_choices']=apply_scene_labels(scenes, classify_scenes(scenes))
@@ -61,6 +62,7 @@ def revise_video_project(root, project_id, instruction):
     try:
         project['status']='revising'; project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds'); project.pop('revision_error',None); save_project(root,project)
         revised=generate_storyboard(project['topic'],project['sources'],previous=old_storyboard,revision=instruction)
+        project['warnings']=revised.get('normalization_warnings',[])
         layout_choices=apply_scene_labels(revised['scenes'],classify_scenes(revised['scenes']))
         beats=analyze_music(DEFAULT_MUSIC)
         scenes=revised['scenes']

@@ -37,6 +37,25 @@ def extract_json(text):
         raise GenerationError('模型返回的 JSON 必须是对象')
     return value
 
+def complete_visual_descriptions(storyboard):
+    """Supply a safe visual brief when the model omits a non-factual field."""
+    warnings=[]
+    art=storyboard.get('art_direction',{})
+    metaphor=art.get('visual_metaphor','') if isinstance(art,dict) else ''
+    style=art.get('style','') if isinstance(art,dict) else ''
+    composition=art.get('composition','') if isinstance(art,dict) else ''
+    for index,scene in enumerate(storyboard.get('scenes',[]),1):
+        description=scene.get('visual_description')
+        if isinstance(description,str) and description.strip():
+            continue
+        subject=scene.get('text') or scene.get('caption') or '本幕重点'
+        direction='；'.join(part[:100] for part in (style,metaphor,composition) if isinstance(part,str) and part.strip())
+        scene['visual_description']=f'以“{subject[:80]}”为本幕视觉焦点，按照本片主题视觉设计呈现。'+(f' 视觉方向：{direction}' if direction else '')
+        warnings.append(f'第{index}幕缺少画面描述，已按本片主题视觉设计补齐。')
+    if warnings:
+        storyboard['normalization_warnings']=warnings
+    return storyboard
+
 def generate_storyboard(topic, sources, api_key=None, model=None, previous=None, revision=None):
     key = read_api_key() if api_key is None else api_key
     if not key:
@@ -107,7 +126,8 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
         with urllib.request.urlopen(request,timeout=120) as response:
             result=json.load(response)
         content=result['choices'][0]['message']['content']
-        return validate_storyboard(simplify_tree(extract_json(content)))
+        storyboard=complete_visual_descriptions(simplify_tree(extract_json(content)))
+        return validate_storyboard(storyboard)
     except StoryboardError as exc:
         raise GenerationError(f'分镜校验失败：{exc}') from exc
     except (OSError, KeyError, IndexError, TypeError, ValueError) as exc:

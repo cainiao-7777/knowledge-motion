@@ -93,6 +93,12 @@ function makeProjectCard(project) {
       ? '修改失败，原视频已保留：' + project.revision_error : project.error;
     card.append(error);
   }
+  if (Array.isArray(project.warnings) && project.warnings.length) {
+    const warning = document.createElement('p');
+    warning.className = 'normalization-warning';
+    warning.textContent = project.warnings.join(' ');
+    card.append(warning);
+  }
   if (project.status === 'complete') {
     const video = document.createElement('video');
     video.controls = true;
