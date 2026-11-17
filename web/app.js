@@ -1,7 +1,15 @@
 const form = document.getElementById('form');
 const message = document.getElementById('message');
 const projects = document.getElementById('projects');
+const projectSearch = document.getElementById('projectSearch');
+const projectCount = document.getElementById('projectCount');
+const pageInfo = document.getElementById('pageInfo');
+const previousPage = document.getElementById('previousPage');
+const nextPage = document.getElementById('nextPage');
 let lastSnapshot = '';
+let allProjects = [];
+let currentPage = 1;
+const pageSize = 6;
 
 async function postJson(url, body) {
   const response = await fetch(url, {
@@ -130,8 +138,65 @@ function makeProjectCard(project) {
     sources.textContent = '查看来源清单';
     card.append(sources, makeRevisionForm(project.id));
   }
+  if (!['new','researching','writing','classifying','rendering','revising'].includes(project.status)) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'delete-project';
+    remove.textContent = '删除作品';
+    remove.addEventListener('click', async () => {
+      const message = '确定删除“' + project.topic + '”？这会永久删除该作品的视频、资料清单和修改历史，并释放本地磁盘空间。';
+      if (!window.confirm(message)) return;
+      remove.disabled = true;
+      try {
+        const response = await fetch('/api/projects/' + encodeURIComponent(project.id), { method: 'DELETE' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || '删除失败');
+        lastSnapshot = '';
+        await refresh();
+      } catch (error) {
+        remove.disabled = false;
+        window.alert(error.message || '删除失败，请重试。');
+      }
+    });
+    card.append(remove);
+  }
   return card;
 }
+
+function searchableProjectText(project) {
+  const story = project.storyboard || {};
+  const scenes = Array.isArray(story.scenes) ? story.scenes : [];
+  const sources = Array.isArray(project.sources) ? project.sources : [];
+  return [project.topic,story.title,story.narrative_arc,
+    ...scenes.flatMap(scene => [scene.text,scene.caption]),
+    ...sources.flatMap(source => [source.title,source.snippet])]
+    .filter(Boolean).join(' ').toLocaleLowerCase();
+}
+
+function renderProjects() {
+  const query = projectSearch.value.trim().toLocaleLowerCase();
+  const filtered = allProjects.filter(project => !query || searchableProjectText(project).includes(query));
+  const pageCount = Math.max(1,Math.ceil(filtered.length/pageSize));
+  currentPage = Math.min(currentPage,pageCount);
+  const start = (currentPage-1)*pageSize;
+  const visible = filtered.slice(start,start+pageSize);
+  projects.replaceChildren();
+  projectCount.textContent = query
+    ? `找到 ${filtered.length} 个作品${filtered.length ? `，显示 ${start+1}–${start+visible.length}` : ''}`
+    : `共 ${filtered.length} 个作品`;
+  pageInfo.textContent = `第 ${currentPage} / ${pageCount} 页`;
+  previousPage.disabled = currentPage<=1;
+  nextPage.disabled = currentPage>=pageCount;
+  if (!visible.length) {
+    projects.textContent = query ? '没有匹配的作品。' : '还没有作品。';
+    return;
+  }
+  for (const project of visible) projects.append(makeProjectCard(project));
+}
+
+projectSearch.addEventListener('input',() => { currentPage=1; renderProjects(); });
+previousPage.addEventListener('click',() => { currentPage=Math.max(1,currentPage-1); renderProjects(); });
+nextPage.addEventListener('click',() => { currentPage+=1; renderProjects(); });
 
 async function refresh() {
   try {
@@ -143,12 +208,8 @@ async function refresh() {
       return;
     }
     lastSnapshot = snapshot;
-    projects.replaceChildren();
-    if (items.length === 0) {
-      projects.textContent = '还没有作品。';
-      return;
-    }
-    for (const project of items) projects.append(makeProjectCard(project));
+    allProjects = items;
+    renderProjects();
   } catch (error) {
     projects.textContent = '无法读取本地作品列表。';
   }

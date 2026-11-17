@@ -6,7 +6,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from src.projects import list_projects, load_project, project_dir, ProjectError
+from src.projects import list_projects, load_project, project_dir, delete_project, ProjectError
 from src.pipeline import create_video_project, revise_video_project
 
 ROOT=Path(__file__).resolve().parent
@@ -128,12 +128,12 @@ class Handler(BaseHTTPRequestHandler):
                 instruction=payload.get('instruction','').strip()
                 project_id=path.removeprefix('/api/revise/')
                 if not instruction or len(instruction)>500: raise ValueError()
-                project=load_project(OUTPUT,project_id)
-                if project['status'] != 'complete':
-                    return self.reply_json(409,{'error':'作品尚未完成或正在修改'})
                 with revision_lock:
                     if project_id in active_revisions:
                         return self.reply_json(409,{'error':'作品正在修改'})
+                    project=load_project(OUTPUT,project_id)
+                    if project['status'] != 'complete':
+                        return self.reply_json(409,{'error':'作品尚未完成或正在修改'})
                     active_revisions.add(project_id)
                 threading.Thread(target=revise_worker,args=(project_id,instruction),daemon=True).start()
                 return self.reply_json(202,{'message':'正在修改，原视频会保留'})
@@ -149,6 +149,25 @@ class Handler(BaseHTTPRequestHandler):
             generation_lock.release()
             raise
         return self.reply_json(202,{'message':'开始生成，请在作品列表查看进度'})
+
+    def do_DELETE(self):
+        if self.headers.get('Host') != f'127.0.0.1:{PORT}' or self.headers.get('Origin') != f'http://127.0.0.1:{PORT}':
+            return self.reply_json(403,{'error':'无效请求来源'})
+        path=urlsplit(self.path).path
+        parts=path.strip('/').split('/')
+        if len(parts)!=3 or parts[:2]!=['api','projects']:
+            return self.reply_json(404,{'error':'页面不存在'})
+        try:
+            with revision_lock:
+                project=load_project(OUTPUT,parts[2])
+                if parts[2] in active_revisions or project.get('status') in ('new','researching','writing','classifying','rendering','revising'):
+                    return self.reply_json(409,{'error':'作品正在生成或修改，暂时不能删除'})
+                delete_project(OUTPUT,parts[2])
+        except ProjectError as exc:
+            return self.reply_json(404,{'error':str(exc)})
+        except OSError:
+            return self.reply_json(500,{'error':'删除失败，请确认项目文件未被其他程序占用'})
+        return self.reply_json(200,{'message':'作品及其本地文件已删除'})
 
 if __name__=='__main__':
     print(f'知识动画工作台：http://127.0.0.1:{PORT}',flush=True)

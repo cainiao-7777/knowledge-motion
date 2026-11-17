@@ -1,6 +1,7 @@
 """Keep user projects in separate local folders with atomic metadata writes."""
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -41,3 +42,10 @@ def list_projects(root):
             try: items.append(load_project(root,path.name))
             except (ProjectError,ValueError,json.JSONDecodeError): continue
     return sorted(items,key=lambda x:x.get('created',''),reverse=True)
+
+def delete_project(root, project_id):
+    """Permanently remove one UUID-scoped local project directory."""
+    folder=project_dir(root,project_id)
+    if not folder.is_dir():
+        raise ProjectError('作品不存在')
+    shutil.rmtree(folder)
