@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import shutil
 import uuid
+from datetime import datetime
 from src.projects import create_project, save_project, project_dir, load_project
 from src.research import search_sources
 from src.generator import generate_storyboard
@@ -15,6 +16,7 @@ DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
 
 def create_video_project(root, topic):
     project=create_project(root,topic)
+    project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds')
     folder=project_dir(root,project['id'])
     try:
         project['status']='researching'; save_project(root,project)
@@ -53,7 +55,7 @@ def revise_video_project(root, project_id, instruction):
         raise ValueError('请先选择已完成的作品并填写修改意见')
     old_storyboard=project['storyboard']
     try:
-        project['status']='revising'; project.pop('revision_error',None); save_project(root,project)
+        project['status']='revising'; project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds'); project.pop('revision_error',None); save_project(root,project)
         revised=generate_storyboard(project['topic'],project['sources'],previous=old_storyboard,revision=instruction)
         layout_choices=apply_scene_labels(revised['scenes'],classify_scenes(revised['scenes']))
         beats=analyze_music(DEFAULT_MUSIC)

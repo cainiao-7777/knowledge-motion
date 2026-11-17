@@ -82,6 +82,9 @@ function makeProjectCard(project) {
   const status = document.createElement('span');
   status.className = 'status';
   status.textContent = labels[project.status] || project.status;
+  status.dataset.baseText = status.textContent;
+  status.dataset.active = ['new','researching','writing','classifying','rendering','revising'].includes(project.status) ? 'true' : 'false';
+  status.dataset.startedAt = project.operation_started_at || project.created || '';
   card.append(status);
 
   if (project.error || project.revision_error) {
@@ -129,7 +132,10 @@ async function refresh() {
     const response = await fetch('/api/projects');
     const items = await response.json();
     const snapshot = JSON.stringify(items);
-    if (snapshot === lastSnapshot) return;
+    if (snapshot === lastSnapshot) {
+      updateTimeoutLabels();
+      return;
+    }
     lastSnapshot = snapshot;
     projects.replaceChildren();
     if (items.length === 0) {
@@ -139,6 +145,20 @@ async function refresh() {
     for (const project of items) projects.append(makeProjectCard(project));
   } catch (error) {
     projects.textContent = '无法读取本地作品列表。';
+  }
+}
+
+function updateTimeoutLabels() {
+  const timeoutMs = 5 * 60 * 1000;
+  for (const status of document.querySelectorAll('.status[data-active="true"]')) {
+    const elapsed = Date.now() - Date.parse(status.dataset.startedAt);
+    if (Number.isFinite(elapsed) && elapsed >= timeoutMs) {
+      status.textContent = '等待超时（已 ' + Math.floor(elapsed / 60000) + ' 分钟，仍在运行）';
+      status.classList.add('status-timeout');
+    } else {
+      status.textContent = status.dataset.baseText;
+      status.classList.remove('status-timeout');
+    }
   }
 }
 
