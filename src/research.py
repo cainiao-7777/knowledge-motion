@@ -6,6 +6,9 @@ import re
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
+from src.language import to_simplified
 
 PINYIN_NAME_CHARS={
     'yu':['瑜','玉','雨','宇','羽','妤','语','禹','钰'],
@@ -22,6 +25,7 @@ class ResearchError(RuntimeError):
 
 def extract_search_query(topic):
     """Remove presentation instructions and prefer an explicitly quoted title."""
+    topic=to_simplified(topic)
     text=topic.strip()
     quoted=re.findall(r'[《「『“"]([^》」』”"]+)[》」』”"]',text)
     if quoted:
@@ -53,7 +57,7 @@ def normalize_results(results):
         parsed=urllib.parse.urlparse(url)
         if parsed.scheme != 'https' or not parsed.netloc or not item.get('title'):
             continue
-        output.append({'title':item['title'],'url':url,'snippet':item.get('snippet',''), 'accessed':datetime.date.today().isoformat()})
+        output.append({'title':to_simplified(item['title']),'url':url,'snippet':to_simplified(item.get('snippet','')), 'accessed':datetime.date.today().isoformat()})
     return output
 
 def rank_sources(sources, query, is_book, candidates=(), prefer_best=False):
@@ -96,6 +100,55 @@ def spelling_suggestions(query):
             output.append(cleaned)
     return output[:5]
 
+class _DuckDuckGoParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.results=[];self.current=None;self.capture=None
+
+    def handle_starttag(self,tag,attrs):
+        attrs=dict(attrs);classes=attrs.get('class','').split()
+        if tag=='div' and 'result' in classes:
+            self.current={'title':'','url':'','snippet':''};self.results.append(self.current)
+        elif self.current is not None and tag=='a' and 'result__a' in classes:
+            self.capture='title';self.current['url']=attrs.get('href','')
+        elif self.current is not None and 'result__snippet' in classes:
+            self.capture='snippet'
+
+    def handle_endtag(self,tag):
+        if tag in ('a','div','span'):
+            self.capture=None
+        if tag=='div' and self.current is not None and self.capture is None:
+            # Nested result markup varies; retaining the item until the next result is safe.
+            pass
+
+    def handle_data(self,data):
+        if self.current is not None and self.capture in ('title','snippet'):
+            self.current[self.capture]+=data
+
+def browser_search(query):
+    """Parse public DuckDuckGo web results; autocomplete suggestions are not citations."""
+    params=urllib.parse.urlencode({'q':query})
+    url='https://html.duckduckgo.com/html/?'+params
+    request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'})
+    try:
+        with urllib.request.urlopen(request,timeout=18) as response:
+            parser=_DuckDuckGoParser();parser.feed(response.read().decode('utf-8','replace'))
+    except (OSError,ValueError):
+        return []
+    results=[]
+    for item in parser.results:
+        href=html.unescape(item['url'])
+        parsed=urllib.parse.urlparse(href)
+        if parsed.netloc.endswith('duckduckgo.com'):
+            href=urllib.parse.parse_qs(parsed.query).get('uddg',[''])[0]
+        if item['title'].strip() and href.startswith('https://'):
+            results.append({'title':to_simplified(html.unescape(item['title'].strip())),
+                            'url':href,
+                            'snippet':to_simplified(html.unescape(item['snippet'].strip())),
+                            'source':'DuckDuckGo Web Search'})
+        if len(results)>=6: break
+    return results
+
 def expand_name_candidates(query, suggestions):
     candidates=[]
     for base in suggestions:
@@ -125,6 +178,7 @@ def search_sources(topic):
     items=[]
     suggestions=spelling_suggestions(core)
     candidates=expand_name_candidates(core,suggestions)
+    fuzzy_name=bool(re.fullmatch(r'[\u3400-\u9fff]+[A-Za-z]+',core))
     queries=[core]+candidates[:5]
     wiki_failures=0
     languages=['zh']
@@ -143,6 +197,9 @@ def search_sources(topic):
             except (OSError, ValueError, KeyError):
                 wiki_failures+=1
 
+    # Add ordinary web pages so the retriever is not limited to encyclopedias.
+    items.extend(browser_search(core))
+
     # Long prompts and book titles are often poorly covered by an encyclopedia
     # search, so add catalog metadata instead of treating a weak search as empty.
     if is_book or len(items)<3:
@@ -157,7 +214,7 @@ def search_sources(topic):
                 authors=', '.join(record.get('author_name',[])[:2])
                 year=record.get('first_publish_year')
                 detail='；'.join(x for x in (f'作者：{authors}' if authors else '',f'首版年份：{year}' if year else '') if x)
-                items.append({'title':title,'url':'https://openlibrary.org'+key,'snippet':detail,'source':'Open Library'})
+                items.append({'title':to_simplified(title),'url':'https://openlibrary.org'+key,'snippet':to_simplified(detail),'source':'Open Library'})
         except (OSError,ValueError,KeyError):
             pass
 
@@ -169,8 +226,16 @@ def search_sources(topic):
         if identity not in seen:
             unique.append(source);seen.add(identity)
     if unique:
-        ranked=rank_sources(unique,core,is_book,candidates,prefer_best=bool(candidates))
+        ranked=rank_sources(unique,core,is_book,candidates,prefer_best=fuzzy_name)
         if ranked:
+            if not fuzzy_name:
+                reference=[s for s in ranked if 'wikipedia.org' in urllib.parse.urlparse(s['url']).netloc or 'openlibrary.org' in urllib.parse.urlparse(s['url']).netloc]
+                web=[s for s in ranked if s not in reference]
+                if web:
+                    selected=reference[:5]+web[:3]
+                    if len(selected)<8:
+                        selected.extend(s for s in ranked if s not in selected and len(selected)<8)
+                    return selected[:8]
             return ranked[:8]
     if wiki_failures==len(languages) and (is_book or not items):
         raise ResearchError('公开资料网站暂时无法连接，请检查网络后重试。')

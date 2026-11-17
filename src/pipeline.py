@@ -11,10 +11,12 @@ from src.render import render_video
 from src.beats import analyze_music
 from src.timeline import align_scenes, normalize_durations
 from src.classifier import classify_scenes, apply_scene_labels
+from src.language import to_simplified
 
 DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
 
 def create_video_project(root, topic):
+    topic=to_simplified(topic)
     project=create_project(root,topic)
     project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds')
     folder=project_dir(root,project['id'])
@@ -50,6 +52,7 @@ def create_video_project(root, topic):
     return project
 
 def revise_video_project(root, project_id, instruction):
+    instruction=to_simplified(instruction)
     project=load_project(root, project_id)
     folder=project_dir(root,project_id)
     if project['status'] != 'complete' or not instruction.strip():

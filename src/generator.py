@@ -4,6 +4,7 @@ import os
 import re
 import urllib.request
 from src.storyboard import validate_storyboard, StoryboardError
+from src.language import to_simplified, simplify_tree
 
 class GenerationError(RuntimeError):
     pass
@@ -40,6 +41,7 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
     key = read_api_key() if api_key is None else api_key
     if not key:
         raise GenerationError('请先设置 DASHSCOPE_API_KEY 环境变量')
+    topic=to_simplified(topic)
     if not topic or not topic.strip():
         raise GenerationError('请输入知识主题')
     if not sources:
@@ -47,7 +49,8 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
     model = model or os.getenv('BAILIAN_MODEL', 'qwen4-max')
     endpoint = os.getenv('BAILIAN_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1').rstrip('/') + '/chat/completions'
     source_text = '\n'.join(f"{s['title']} {s['url']} {s.get('snippet','')}" for s in sources)
-    prompt = ('你是知识短片导演、视觉设计师和严谨的科普作者。制作无旁白中文知识动画，观众为普通大众，依据资料讲清主题。'
+    prompt = ('你是知识短片导演、视觉设计师和严谨的科普作者。制作无旁白简体中文知识动画，观众为普通大众，依据资料讲清主题。'
+              '所有面向观众的title、text、caption以及叙事说明必须使用简体中文；检索资料即使是繁体，也要先转换为简体再表达。'
               '不要套用预设的幕数、镜头顺序、叙事弧线、画面布局、色板或示例模板。先理解这个主题，再自行决定需要讲几个信息点、如何推进、哪里停顿或转折、每幕时长、构图、视觉隐喻和整体风格。'
               '成片总时长目标约一分钟，按内容自然分段，镜头数量和各幕时长可变，不要求等长。'
               '讲解要有层次，不要停留在定义、口号或剧情简介：选择值得解释的核心问题，说明背景、机制、矛盾或人物处境如何联系，给出资料支持的具体例子，并指出结论成立的条件或适用边界。'
@@ -59,7 +62,7 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
               '没有资料支持的细节要收窄结论，并在caption说明不确定性。'
               '\n用户主题：'+topic+'\n检索资料与来源：\n'+source_text)
     if previous is not None and revision:
-        prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(previous, ensure_ascii=False) + '\n修改意见：' + revision
+        prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(simplify_tree(previous), ensure_ascii=False) + '\n修改意见：' + to_simplified(revision)
     response_schema={
         'type':'json_schema',
         'json_schema':{
@@ -103,7 +106,7 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
         with urllib.request.urlopen(request,timeout=120) as response:
             result=json.load(response)
         content=result['choices'][0]['message']['content']
-        return validate_storyboard(extract_json(content))
+        return validate_storyboard(simplify_tree(extract_json(content)))
     except StoryboardError as exc:
         raise GenerationError(f'分镜校验失败：{exc}') from exc
     except (OSError, KeyError, IndexError, TypeError, ValueError) as exc:
