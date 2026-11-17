@@ -52,7 +52,7 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
               '成片总时长目标约一分钟，按内容自然分段，镜头数量和各幕时长可变，不要求等长。'
               '讲解要有层次，不要停留在定义、口号或剧情简介：选择值得解释的核心问题，说明背景、机制、矛盾或人物处境如何联系，给出资料支持的具体例子，并指出结论成立的条件或适用边界。'
               '每幕推进新信息，避免重复摘要；有限时长里讲透一个核心问题，不罗列浅层知识点。'
-              '只输出JSON对象，包含字段：title（标题）；narrative_arc（本主题实际采用的叙事推进说明）；art_direction（本主题专属的风格描述、视觉隐喻、背景色background、强调色accent、辅助色secondary、纹理motif）；scenes（按本主题需要决定数量的分镜数组）。'
+              '只输出JSON对象，包含字段：title（标题）；narrative_arc（本主题实际采用的叙事推进说明）；art_direction（本主题专属的风格描述、视觉隐喻、自由描述构图composition、背景色background、强调色accent、辅助色secondary、纹理motif）；scenes（按本主题需要决定数量的分镜数组）。'
               '每个scene包含text（观众看到的主文字）、caption（更细腻的补充解释）、visual_description（具体构图、元素、运动和转场意图）、duration_seconds（本幕时长）及data（只有图形确实需要的数据才填写）。'
               '不要在输出中照抄字段说明或使用占位文字。风格由主题决定：文学作品可以考虑人物视角、留白、纸本文学或心理意象；科学概念可考虑空间、尺度或过程，但这些只是可能性，不是规定。请为当前主题重新判断，不要沿用其他主题的配色和叙事。'
               '渲染器会依据visual_description与data把分镜转成可用的图形画面；描述应具体可画。图形数据必须来自资料或明确标为示意，不得伪造数字、引用或因果。'
@@ -60,7 +60,44 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
               '\n用户主题：'+topic+'\n检索资料与来源：\n'+source_text)
     if previous is not None and revision:
         prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(previous, ensure_ascii=False) + '\n修改意见：' + revision
-    body = json.dumps({'model':model,'messages':[{'role':'user','content':prompt}], 'max_tokens':2500, 'temperature':0.5},ensure_ascii=False).encode('utf-8')
+    response_schema={
+        'type':'json_schema',
+        'json_schema':{
+            'name':'knowledge_video_storyboard',
+            'strict':True,
+            'schema':{
+                'type':'object','additionalProperties':False,
+                'properties':{
+                    'title':{'type':'string'},
+                    'narrative_arc':{'type':'string'},
+                    'art_direction':{
+                        'type':'object','additionalProperties':False,
+                        'properties':{
+                            'style':{'type':'string'},'visual_metaphor':{'type':'string'},'composition':{'type':'string'},
+                            'background':{'type':'string'},'accent':{'type':'string'},
+                            'secondary':{'type':'string'},'motif':{'type':'string'}
+                        },
+                        'required':['style','visual_metaphor','composition','background','accent','secondary','motif']
+                    },
+                    'scenes':{
+                        'type':'array',
+                        'items':{
+                            'type':'object','additionalProperties':False,
+                            'properties':{
+                                'text':{'type':'string'},'caption':{'type':'string'},
+                                'visual_description':{'type':'string'},
+                                'duration_seconds':{'type':'number'},
+                                'data':{'type':'object','additionalProperties':True}
+                            },
+                            'required':['text','caption','visual_description','duration_seconds','data']
+                        }
+                    }
+                },
+                'required':['title','narrative_arc','art_direction','scenes']
+            }
+        }
+    }
+    body = json.dumps({'model':model,'messages':[{'role':'user','content':prompt}], 'max_tokens':5000, 'temperature':0.7, 'enable_thinking':False, 'response_format':response_schema},ensure_ascii=False).encode('utf-8')
     request=urllib.request.Request(endpoint,data=body,headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
     try:
         with urllib.request.urlopen(request,timeout=120) as response:

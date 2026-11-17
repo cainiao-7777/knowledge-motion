@@ -55,9 +55,56 @@ def draw_background_motif(draw, motif, accent, light):
     elif motif=='editorial':
         draw.rectangle((0,0,20,HEIGHT),fill=accent)
         draw.line((92,94,1188,94),fill=line,width=3)
+    elif motif=='door':
+        for offset in range(0,WIDTH,68):
+            draw.line((offset,120,offset-120,400),fill=line,width=1)
+
+def draw_theme_metaphor(draw, motif, description, accent, foreground, progress, beat_pulse, layout):
+    if motif=='fracture':
+        box=(900,200,1180,500)
+        draw.ellipse(box,outline=accent,width=2+round(2*beat_pulse))
+        if any(word in (description or '').casefold() for word in ('面具','mask','假面')):
+            draw.arc((940,270,1020,325),190,345,fill=foreground,width=3)
+            draw.arc((1060,270,1140,325),190,345,fill=foreground,width=3)
+            draw.arc((970,340,1110,410),15,165,fill=accent,width=3)
+        cracks=[[(1040,200),(1022,250),(1054,290),(1028,330),(1050,370),(1018,420),(1030,460),(1010,500)],
+                [(1050,290),(1100,265),(1130,235)],[(1028,330),(970,310),(930,280)],
+                [(1050,370),(1110,395),(1150,440)]]
+        visible=max(2,min(8,round(2+progress*6)))
+        for crack in cracks[:1+(visible>4)+(visible>6)]:
+            draw.line(crack[:visible],fill=foreground,width=2)
+    elif motif=='butterfly':
+        draw.ellipse((1008,285,1038,430),fill=accent)
+        draw.ellipse((930,245,1018,340),outline=accent,width=3)
+        draw.ellipse((1028,245,1116,340),outline=accent,width=3)
+        draw.ellipse((944,345,1018,430),outline=foreground,width=2)
+        draw.ellipse((1028,345,1102,430),outline=foreground,width=2)
+    elif motif=='branch':
+        trunk=(1040,480,1040,235)
+        draw.line(trunk,fill=accent,width=4)
+        for end in ((950,280),(1125,300),(965,365),(1120,390)):
+            start_y=350 if end[1]<350 else 420
+            draw.line((1040,start_y,end[0],end[1]),fill=accent,width=3)
+            draw.ellipse((end[0]-9,end[1]-9,end[0]+9,end[1]+9),fill=foreground)
+    elif motif=='orbit':
+        cx,cy=(640,408) if layout=='center' else (1040,350)
+        sizes=(58,82,106) if layout=='center' else (82,112,146)
+        draw.ellipse((cx-48,cy-48,cx+48,cy+48),fill=(4,5,12))
+        for radius in sizes:
+            draw.arc((cx-radius,cy-radius*0.52,cx+radius,cy+radius*0.52),195,520,fill=accent,width=2+round(2*beat_pulse))
+    elif motif=='door':
+        x=950 if layout=='asymmetric' else 875
+        draw.rectangle((x,205,x+210,510),outline=accent,width=4)
+        draw.polygon([(x+12,215),(x+145,250),(x+145,492),(x+12,500)],fill=(32,34,43),outline=foreground)
+        draw.ellipse((x+127,365,x+139,377),fill=accent)
+        draw.rectangle((x+150,255,x+199,492),fill=(8,9,15))
+    elif motif=='editorial':
+        draw.rounded_rectangle((930,220,1160,485),radius=4,outline=accent,width=3)
+        for y in (285,325,365,405): draw.line((958,y,1128,y),fill=foreground,width=2)
 
 def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.0):
     palette=choose_palette(palette)
+    layout=palette.get('layout','editorial')
     light=contrast(palette['background'],'#181927') > contrast(palette['background'],'#eff0f6')
     foreground=(24,25,39) if light else (239,240,246)
     secondary_hex=palette['secondary']
@@ -69,24 +116,33 @@ def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.
     image=Image.new('RGB',(WIDTH,HEIGHT),palette['background'])
     d=ImageDraw.Draw(image)
     draw_background_motif(d,palette['motif'],accent,light)
+    art_progress=((index-1)+progress)/max(1,count-1)
+    draw_theme_metaphor(d,palette['motif'],palette.get('visual_metaphor',''),accent,foreground,art_progress,beat_pulse,layout)
     d.line((60,73,1220,73), fill=divider, width=1)
     d.text((64,35),'KNOWLEDGE  /  知识大赏',font=font(18),fill=secondary)
     d.text((1095,35),f'{index:02d} / {count:02d}',font=font(18),fill=secondary)
-    d.text((64,140),title[:24],font=font(28),fill=accent)
+    title_face=font(28)
+    title_text=title[:24]
+    title_x=(WIDTH-d.textlength(title_text,font=title_face))/2 if layout=='center' else 72 if layout=='asymmetric' else 64
+    title_y=105 if layout=='center' else 145 if layout=='asymmetric' else 140
+    d.text((title_x,title_y),title_text,font=title_face,fill=accent)
     heading=font(55)
-    lines=wrapped(d,scene['text'],heading,750)
+    text_width=980 if layout=='center' else 650 if layout=='asymmetric' else 750
+    lines=wrapped(d,scene['text'],heading,text_width)
     if len(lines)>4:
         heading=font(42)
-        lines=wrapped(d,scene['text'],heading,750)
+        lines=wrapped(d,scene['text'],heading,text_width)
     if len(lines)>5:
         raise ValueError('分镜文字过长，请缩短后重新生成')
-    y=210
+    y=190 if layout=='center' else 285 if layout=='asymmetric' else 210
     for line in lines:
-        d.text((64,y),line,font=heading,fill=foreground)
+        text_x=(WIDTH-d.textlength(line,font=heading))/2 if layout=='center' else 82 if layout=='asymmetric' else 64
+        d.text((text_x,y),line,font=heading,fill=foreground)
         y+=72 if heading.size==55 else 58
     sub=font(23)
-    for j,line in enumerate(wrapped(d,scene.get('caption',''),sub,740)[:3]):
-        d.text((67, 540+j*33),line,font=sub,fill=secondary)
+    for j,line in enumerate(wrapped(d,scene.get('caption',''),sub,900 if layout=='center' else 720 if layout=='asymmetric' else 740)[:3]):
+        caption_x=(WIDTH-d.textlength(line,font=sub))/2 if layout=='center' else 82 if layout=='asymmetric' else 67
+        d.text((caption_x, 552+j*33 if layout=='center' else 540+j*33),line,font=sub,fill=secondary)
     if scene.get('type') == 'matrix':
         cells = scene['data']['cells']
         for i, cell in enumerate(cells):
@@ -117,13 +173,15 @@ def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.
                 d.text((x+(145-width)/2,302+j*34),line,font=label_face,fill=accent)
         d.line((1008,335,1035,335),fill=accent,width=2)
     else:
-        # Progress arc is drawn from time, so frames are deterministic.
-        radius=110+round(8*beat_pulse)
-        cx,cy=1030,345
-        ring=(cx-radius,cy-radius,cx+radius,cy+radius)
-        d.ellipse(ring,outline=divider,width=5)
-        d.arc(ring,-90,-90+max(1,int(progress*360)),fill=accent,width=6+round(3*beat_pulse))
-        d.text((990,318),f'{index:02d}',font=font(58),fill=foreground)
+        if palette['motif']=='none':
+            radius=110+round(8*beat_pulse)
+            cx,cy=1030,345
+            ring=(cx-radius,cy-radius,cx+radius,cy+radius)
+            d.ellipse(ring,outline=divider,width=5)
+            d.arc(ring,-90,-90+max(1,int(progress*360)),fill=accent,width=6+round(3*beat_pulse))
+            d.text((990,318),f'{index:02d}',font=font(58),fill=foreground)
+        else:
+            d.text((1128,458),f'{index:02d}',font=font(24),fill=accent)
     d.line((64,651,1216,651),fill=divider,width=3)
     d.line((64,651,64+int(1152*((index-1+progress)/count)),651),fill=accent,width=3)
     return image

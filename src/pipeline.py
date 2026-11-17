@@ -9,7 +9,7 @@ from src.research import search_sources
 from src.generator import generate_storyboard
 from src.render import render_video
 from src.beats import analyze_music
-from src.timeline import align_scenes
+from src.timeline import align_scenes, normalize_durations
 from src.classifier import classify_scenes, apply_scene_labels
 
 DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
@@ -35,7 +35,8 @@ def create_video_project(root, topic):
             raise FileNotFoundError('指定背景音乐不存在，请确认音乐文件路径')
         beats = analyze_music(DEFAULT_MUSIC)
         scenes = project['storyboard']['scenes']
-        boundaries = align_scenes([s['duration_seconds'] for s in scenes], beats)
+        durations=normalize_durations([s['duration_seconds'] for s in scenes])
+        boundaries = align_scenes(durations, beats)
         for index, scene in enumerate(scenes):
             scene['duration_seconds'] = boundaries[index+1] - boundaries[index]
         project['beat_count'] = len(beats)
@@ -60,7 +61,8 @@ def revise_video_project(root, project_id, instruction):
         layout_choices=apply_scene_labels(revised['scenes'],classify_scenes(revised['scenes']))
         beats=analyze_music(DEFAULT_MUSIC)
         scenes=revised['scenes']
-        boundaries=align_scenes([s['duration_seconds'] for s in scenes],beats)
+        durations=normalize_durations([s['duration_seconds'] for s in scenes])
+        boundaries=align_scenes(durations,beats)
         for index,scene in enumerate(scenes):
             scene['duration_seconds']=boundaries[index+1]-boundaries[index]
         candidate=folder / ('candidate-'+str(uuid.uuid4())+'.mp4')
