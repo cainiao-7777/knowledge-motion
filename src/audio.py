@@ -6,10 +6,15 @@ def create_effects_track(path,duration,positions):
     rate=22050
     count=round(duration*rate)
     signal=np.zeros(count,dtype=np.float32)
-    length=round(0.15*rate)
+    length=round(0.12*rate)
     t=np.arange(length)/rate
-    envelope=np.exp(-t*35)
-    pulse=0.08*np.sin(2*np.pi*(640*t+120*t*t))*envelope
+    envelope=np.exp(-t*42)
+    thump=0.11*np.sin(2*np.pi*(118*t-180*t*t))*envelope
+    click_length=round(0.012*rate)
+    rng=np.random.default_rng(17)
+    click=np.zeros(length,dtype=np.float32)
+    click[:click_length]=0.035*rng.standard_normal(click_length)*np.exp(-np.arange(click_length)/(rate*0.003))
+    pulse=thump+click
     for position in positions:
         start=round(position*rate)
         if 0 <= start < count:

@@ -33,15 +33,43 @@ def wrapped(draw, text, face, max_width):
         if line: lines.append(line)
     return lines
 
-def draw_scene(title, scene, progress, index, count, palette=None):
+def _tint(color, amount=0.16):
+    return tuple(round(channel*(1-amount)+255*amount) for channel in color)
+
+def draw_background_motif(draw, motif, accent, light):
+    line=_tint(accent,0.70 if light else 0.24)
+    if motif=='grid':
+        for x in range(48,WIDTH,64): draw.line((x,90,x,635),fill=line,width=1)
+        for y in range(105,635,64): draw.line((48,y,1232,y),fill=line,width=1)
+    elif motif=='orbit':
+        for radius in (110,170,230):
+            draw.ellipse((1010-radius,355-radius,1010+radius,355+radius),outline=line,width=1)
+        draw.ellipse((1002,347,1018,363),fill=accent)
+    elif motif=='wave':
+        for layer in range(5):
+            points=[]
+            for x in range(0,WIDTH+1,24):
+                y=510+layer*24+int(15*math.sin(x/115+layer*0.72))
+                points.append((x,y))
+            draw.line(points,fill=line,width=2)
+    elif motif=='editorial':
+        draw.rectangle((0,0,20,HEIGHT),fill=accent)
+        draw.line((92,94,1188,94),fill=line,width=3)
+
+def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.0):
     palette=choose_palette(palette)
     light=contrast(palette['background'],'#181927') > contrast(palette['background'],'#eff0f6')
     foreground=(24,25,39) if light else (239,240,246)
-    secondary=foreground
-    accent=palette['accent']
+    secondary_hex=palette['secondary']
+    secondary=tuple(int(secondary_hex[i:i+2],16) for i in (1,3,5))
+    if contrast(palette['background'],secondary_hex)<4.5: secondary=foreground
+    accent=tuple(int(palette['accent'][i:i+2],16) for i in (1,3,5))
+    divider=(192,184,162) if light else (55,54,73)
+    panel=(132,124,110) if light else (95,88,129)
     image=Image.new('RGB',(WIDTH,HEIGHT),palette['background'])
     d=ImageDraw.Draw(image)
-    d.line((60,73,1220,73), fill=(55,54,73), width=1)
+    draw_background_motif(d,palette['motif'],accent,light)
+    d.line((60,73,1220,73), fill=divider, width=1)
     d.text((64,35),'KNOWLEDGE  /  知识大赏',font=font(18),fill=secondary)
     d.text((1095,35),f'{index:02d} / {count:02d}',font=font(18),fill=secondary)
     d.text((64,140),title[:24],font=font(28),fill=accent)
@@ -63,7 +91,8 @@ def draw_scene(title, scene, progress, index, count, palette=None):
         cells = scene['data']['cells']
         for i, cell in enumerate(cells):
             x, y = 865 + (i % 2) * 160, 210 + (i // 2) * 108
-            d.rounded_rectangle((x,y,x+145,y+95),radius=8,outline=(95,88,129),width=2)
+            border=tuple(min(255,int(channel+45*beat_pulse)) for channel in accent)
+            d.rounded_rectangle((x,y,x+145,y+95),radius=8,outline=border,width=2+round(2*beat_pulse))
             d.text((x+18,y+26),cell,font=font(28),fill=foreground)
     elif scene.get('type') == 'flow':
         data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
@@ -72,14 +101,15 @@ def draw_scene(title, scene, progress, index, count, palette=None):
         if not labels: labels=['步骤 1','步骤 2','步骤 3']
         for i,label in enumerate(labels):
             y=210+i*100
-            d.rounded_rectangle((870,y,1180,y+68),radius=10,outline=(95,88,129),width=2)
+            d.rounded_rectangle((870,y,1180,y+68),radius=10,outline=panel,width=2)
             d.text((895,y+16),label[:12],font=font(24),fill=accent if progress >= i*0.2 else secondary)
             if i<len(labels)-1: d.line((1025,y+70,1025,y+98),fill=accent,width=2)
     elif scene.get('type') == 'comparison':
         data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
         labels=[data.get('left','A'),data.get('right','B')]
         for side, x in enumerate((862,1036)):
-            d.rounded_rectangle((x,245,x+145,425),radius=12,outline=(95,88,129),width=2)
+            border=tuple(min(255,int(channel+45*beat_pulse)) for channel in accent)
+            d.rounded_rectangle((x,245,x+145,425),radius=12,outline=border,width=2+round(2*beat_pulse))
             label=labels[side] if isinstance(labels[side],str) and labels[side].strip() else ('A' if side == 0 else 'B')
             label_face=font(25)
             for j,line in enumerate(wrapped(d,label[:14],label_face,120)[:2]):
@@ -88,14 +118,17 @@ def draw_scene(title, scene, progress, index, count, palette=None):
         d.line((1008,335,1035,335),fill=accent,width=2)
     else:
         # Progress arc is drawn from time, so frames are deterministic.
-        d.ellipse((920,235,1140,455),outline=(49,48,70),width=5)
-        d.arc((920,235,1140,455),-90,-90+max(1,int(progress*360)),fill=accent,width=6)
+        radius=110+round(8*beat_pulse)
+        cx,cy=1030,345
+        ring=(cx-radius,cy-radius,cx+radius,cy+radius)
+        d.ellipse(ring,outline=divider,width=5)
+        d.arc(ring,-90,-90+max(1,int(progress*360)),fill=accent,width=6+round(3*beat_pulse))
         d.text((990,318),f'{index:02d}',font=font(58),fill=foreground)
-    d.line((64,651,1216,651),fill=(49,48,70),width=3)
+    d.line((64,651,1216,651),fill=divider,width=3)
     d.line((64,651,64+int(1152*((index-1+progress)/count)),651),fill=accent,width=3)
     return image
 
-def render_video(storyboard, destination, music=None):
+def render_video(storyboard, destination, music=None, beats=None):
     validate_storyboard(storyboard)
     if not shutil.which('ffmpeg'):
         raise RuntimeError('未找到 FFmpeg，请先安装并配置 PATH')
@@ -108,14 +141,20 @@ def render_video(storyboard, destination, music=None):
         proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stderr=subprocess.PIPE)
         try:
             previous=None
+            beats=beats or []
+            elapsed=0.0
             for index,scene in enumerate(storyboard['scenes'],1):
                 count=round(scene['duration_seconds']*FPS)
                 for frame in range(count):
-                    image=draw_scene(storyboard['title'],scene,frame/max(1,count-1),index,len(storyboard['scenes']),storyboard.get('palette'))
+                    global_time=elapsed+frame/FPS
+                    beat_pulse=max((math.exp(-((global_time-beat)/0.075)**2) for beat in beats if abs(global_time-beat)<0.18),default=0.0)
+                    art_direction=storyboard.get('art_direction',storyboard.get('palette'))
+                    image=draw_scene(storyboard['title'],scene,frame/max(1,count-1),index,len(storyboard['scenes']),art_direction,beat_pulse)
                     if previous is not None and frame < FPS//2:
                         image=Image.blend(previous,image,(frame+1)/(FPS//2))
                     proc.stdin.write(image.tobytes())
-                previous=draw_scene(storyboard['title'],scene,1,index,len(storyboard['scenes']),storyboard.get('palette'))
+                previous=draw_scene(storyboard['title'],scene,1,index,len(storyboard['scenes']),storyboard.get('art_direction',storyboard.get('palette')))
+                elapsed+=scene['duration_seconds']
             proc.stdin.close()
             error=proc.stderr.read().decode('utf-8','replace')
             if proc.wait()!=0: raise RuntimeError('视频渲染失败：'+error[-500:])
@@ -131,7 +170,10 @@ def render_video(storyboard, destination, music=None):
                 elapsed+=scene['duration_seconds']; positions.append(elapsed)
             effects=Path(temp)/'effects.wav'
             create_effects_track(effects,duration,positions)
-            cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(silent),'-i',str(music),'-i',str(effects),'-filter_complex','[1:a]volume=0.65,apad[music];[music][2:a]amix=inputs=2:duration=shortest:normalize=0[a]','-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-shortest',str(completed)]
+            fade_start=max(0.0,duration-1.0)
+            fade_duration=min(1.0,duration)
+            audio_filter=f'[1:a]volume=0.48,afade=t=out:st={fade_start}:d={fade_duration},apad[music];[music][2:a]amix=inputs=2:duration=shortest:normalize=0[a]'
+            cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(silent),'-i',str(music),'-i',str(effects),'-filter_complex',audio_filter,'-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-shortest',str(completed)]
             result=subprocess.run(cmd,capture_output=True,text=True,encoding='utf-8',errors='replace')
             if result.returncode: raise RuntimeError('音乐合成失败：'+result.stderr[-500:])
             os.replace(completed,destination)

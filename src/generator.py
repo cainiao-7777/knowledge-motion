@@ -21,11 +21,17 @@ def read_api_key():
         return ''
 
 def extract_json(text):
-    text = re.sub(r'^\s*```(?:json)?\s*|\s*```\s*$', '', text, flags=re.I)
+    text = re.sub(r'^\s*```(?:json)?\s*|\s*```\s*$', '', text.strip(), flags=re.I)
     try:
         value = json.loads(text)
     except (json.JSONDecodeError, TypeError) as exc:
-        raise GenerationError('模型返回的内容不是有效 JSON，请重试') from exc
+        start=text.find('{')
+        if start<0:
+            raise GenerationError('模型返回的内容不是有效 JSON，请重试') from exc
+        try:
+            value,_=json.JSONDecoder().raw_decode(text[start:])
+        except json.JSONDecodeError:
+            raise GenerationError('模型返回的内容不是有效 JSON，请重试') from exc
     if not isinstance(value, dict):
         raise GenerationError('模型返回的 JSON 必须是对象')
     return value
@@ -41,11 +47,17 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
     model = model or os.getenv('BAILIAN_MODEL', 'qwen4-max')
     endpoint = os.getenv('BAILIAN_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1').rstrip('/') + '/chat/completions'
     source_text = '\n'.join(f"{s['title']} {s['url']} {s.get('snippet','')}" for s in sources)
-    prompt = ('为普通大众制作无旁白中文知识动画，依据资料编写约60秒共5幕。只输出JSON对象：'
-              '{"title":"标题","palette":{"background":"#101326","accent":"#c8adff"},"scenes":[{"text":"不超过30字的屏幕文字",'
-              '"caption":"不超过45字的补充解释，供观众阅读",'
-              '"visual_description":"供系统使用的画面描述，不会显示给观众","duration_seconds":12,"type":"concept","data":{}}]}。'
-              'palette按主题设计背景与强调色，均为六位十六进制颜色且保持较高对比度。明确涉及两项对比时可在data中填left和right（每个最多7字）；明确涉及步骤时可填nodes（2至3个短标签）。不确定的数据留空。所有type均为concept，使用文字解释，不要虚构事实、数字和引用。\n主题：'+topic+'\n资料：\n'+source_text)
+    prompt = ('你是知识短片导演、视觉设计师和严谨的科普作者。制作无旁白中文知识动画，观众为普通大众，依据资料讲清主题。'
+              '不要套用预设的幕数、镜头顺序、叙事弧线、画面布局、色板或示例模板。先理解这个主题，再自行决定需要讲几个信息点、如何推进、哪里停顿或转折、每幕时长、构图、视觉隐喻和整体风格。'
+              '成片总时长目标约一分钟，按内容自然分段，镜头数量和各幕时长可变，不要求等长。'
+              '讲解要有层次，不要停留在定义、口号或剧情简介：选择值得解释的核心问题，说明背景、机制、矛盾或人物处境如何联系，给出资料支持的具体例子，并指出结论成立的条件或适用边界。'
+              '每幕推进新信息，避免重复摘要；有限时长里讲透一个核心问题，不罗列浅层知识点。'
+              '只输出JSON对象，包含字段：title（标题）；narrative_arc（本主题实际采用的叙事推进说明）；art_direction（本主题专属的风格描述、视觉隐喻、背景色background、强调色accent、辅助色secondary、纹理motif）；scenes（按本主题需要决定数量的分镜数组）。'
+              '每个scene包含text（观众看到的主文字）、caption（更细腻的补充解释）、visual_description（具体构图、元素、运动和转场意图）、duration_seconds（本幕时长）及data（只有图形确实需要的数据才填写）。'
+              '不要在输出中照抄字段说明或使用占位文字。风格由主题决定：文学作品可以考虑人物视角、留白、纸本文学或心理意象；科学概念可考虑空间、尺度或过程，但这些只是可能性，不是规定。请为当前主题重新判断，不要沿用其他主题的配色和叙事。'
+              '渲染器会依据visual_description与data把分镜转成可用的图形画面；描述应具体可画。图形数据必须来自资料或明确标为示意，不得伪造数字、引用或因果。'
+              '没有资料支持的细节要收窄结论，并在caption说明不确定性。'
+              '\n用户主题：'+topic+'\n检索资料与来源：\n'+source_text)
     if previous is not None and revision:
         prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(previous, ensure_ascii=False) + '\n修改意见：' + revision
     body = json.dumps({'model':model,'messages':[{'role':'user','content':prompt}], 'max_tokens':2500, 'temperature':0.5},ensure_ascii=False).encode('utf-8')

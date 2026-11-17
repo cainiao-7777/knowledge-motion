@@ -93,9 +93,29 @@ function makeProjectCard(project) {
   if (project.status === 'complete') {
     const video = document.createElement('video');
     video.controls = true;
-    video.preload = 'none';
+    video.preload = 'metadata';
     video.src = '/files/' + project.id + '/video.mp4';
-    card.append(video);
+    const seek = document.createElement('input');
+    seek.type = 'range';
+    seek.className = 'seekbar';
+    seek.min = '0';
+    seek.max = '1000';
+    seek.value = '0';
+    seek.disabled = true;
+    seek.setAttribute('aria-label', '拖动播放进度');
+    seek.title = '拖动跳转到视频位置';
+    seek.addEventListener('input', () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        video.currentTime = Number(seek.value) / 1000 * video.duration;
+      }
+    });
+    video.addEventListener('loadedmetadata', () => { seek.disabled = false; });
+    video.addEventListener('timeupdate', () => {
+      if (Number.isFinite(video.duration) && video.duration > 0 && !seek.matches(':active')) {
+        seek.value = String(Math.round(video.currentTime / video.duration * 1000));
+      }
+    });
+    card.append(video, seek);
     const sources = document.createElement('a');
     sources.href = '/files/' + project.id + '/sources.md';
     sources.textContent = '查看来源清单';

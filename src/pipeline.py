@@ -38,7 +38,7 @@ def create_video_project(root, topic):
             scene['duration_seconds'] = boundaries[index+1] - boundaries[index]
         project['beat_count'] = len(beats)
         save_project(root,project)
-        render_video(project['storyboard'],folder/'video.mp4',DEFAULT_MUSIC)
+        render_video(project['storyboard'],folder/'video.mp4',DEFAULT_MUSIC,beats=beats)
         project['status']='complete'
     except Exception as exc:
         project['status']='error'
@@ -62,7 +62,7 @@ def revise_video_project(root, project_id, instruction):
         for index,scene in enumerate(scenes):
             scene['duration_seconds']=boundaries[index+1]-boundaries[index]
         candidate=folder / ('candidate-'+str(uuid.uuid4())+'.mp4')
-        render_video(revised,candidate,DEFAULT_MUSIC)
+        render_video(revised,candidate,DEFAULT_MUSIC,beats=beats)
         old_video=folder/'video.mp4'
         version=len(project.get('notes',[]))+1
         shutil.copy2(old_video,folder/f'video-before-edit-{version}.mp4')

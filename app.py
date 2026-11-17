@@ -1,5 +1,7 @@
 """Local-only web interface for the work-in-progress video generator."""
 import json
+import re
+import shutil
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -37,11 +39,53 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type',mime)
         self.send_header('Content-Length',str(len(body)))
         self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('Cache-Control','no-store')
         self.end_headers()
         self.wfile.write(body)
 
     def reply_json(self,status,data):
         self.respond(status,json.dumps(data,ensure_ascii=False))
+
+    def respond_video(self,file):
+        size=file.stat().st_size
+        header=self.headers.get('Range','')
+        if not header:
+            self.send_response(200)
+            self.send_header('Content-Type','video/mp4')
+            self.send_header('Content-Length',str(size))
+            self.send_header('Accept-Ranges','bytes')
+            self.send_header('Cache-Control','no-store')
+            self.end_headers()
+            with file.open('rb') as stream:
+                shutil.copyfileobj(stream,self.wfile)
+            return
+        match=re.fullmatch(r'bytes=(\d*)-(\d*)',header.strip())
+        if not match or (not match.group(1) and not match.group(2)):
+            self.send_response(416)
+            self.send_header('Content-Range',f'bytes */{size}')
+            self.end_headers()
+            return
+        if match.group(1):
+            start=int(match.group(1)); end=int(match.group(2)) if match.group(2) else size-1
+        else:
+            suffix=int(match.group(2)); start=max(0,size-suffix); end=size-1
+        if start>=size or end<start:
+            self.send_response(416)
+            self.send_header('Content-Range',f'bytes */{size}')
+            self.end_headers()
+            return
+        end=min(end,size-1)
+        length=end-start+1
+        self.send_response(206)
+        self.send_header('Content-Type','video/mp4')
+        self.send_header('Content-Length',str(length))
+        self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
+        self.send_header('Accept-Ranges','bytes')
+        self.send_header('Cache-Control','no-store')
+        self.end_headers()
+        with file.open('rb') as stream:
+            stream.seek(start)
+            self.wfile.write(stream.read(length))
 
     def do_GET(self):
         if self.headers.get('Host') != f'127.0.0.1:{PORT}':
@@ -63,6 +107,8 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts)==3 and parts[0]=='files' and parts[2] in ('video.mp4','sources.md'):
             try:
                 file=project_dir(OUTPUT,parts[1])/parts[2]
+                if parts[2]=='video.mp4':
+                    return self.respond_video(file)
                 mime='video/mp4' if parts[2].endswith('mp4') else 'text/markdown; charset=utf-8'
                 return self.respond(200,file.read_bytes(),mime)
             except (ProjectError,OSError): return self.reply_json(404,{'error':'文件不存在'})

@@ -29,16 +29,24 @@ def apply_scene_labels(scenes, labels):
         if label not in LABELS:
             raise ClassificationError('小模型返回的分镜类别无效')
         data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
-        chosen=label
-        if label == 'flow':
+        requested=scene.get('type')
+        # Keep a complete layout deliberately selected by the large model;
+        # otherwise let the small model suggest a data-supported layout.
+        candidate=requested if requested in ('comparison','flow','matrix','summary') else label
+        chosen=candidate
+        if chosen == 'matrix':
+            cells=data.get('cells')
+            if not isinstance(cells,list) or len(cells)!=4 or any(not isinstance(x,str) or not x.strip() for x in cells):
+                chosen='concept'
+        elif chosen == 'flow':
             nodes=data.get('nodes')
             if not isinstance(nodes,list) or len([x for x in nodes if isinstance(x,str) and x.strip()]) < 2:
-                chosen='concept'
-        elif label == 'comparison':
+                chosen=label if label in ('concept','summary') else 'concept'
+        elif chosen == 'comparison':
             if not all(isinstance(data.get(x),str) and data[x].strip() for x in ('left','right')):
-                chosen='concept'
+                chosen=label if label in ('concept','summary') else 'concept'
         scene['type']=chosen
-        report.append({'predicted':label,'chosen':chosen})
+        report.append({'predicted':label,'requested':requested,'chosen':chosen})
     return report
 
 def classify_scenes(scenes):
