@@ -90,7 +90,7 @@ function makeProjectCard(project) {
   const labels = {
     new: '准备中', planning_search: '正在提炼搜索词', researching: '正在查找资料', writing: '正在生成分镜',
     classifying: '正在选择动画形式', rendering: '正在渲染视频',
-    complete: '已完成', revising: '正在修改', error: '生成失败'
+    complete: '已完成', revising: '正在修改', error: '生成失败', cancelled: '已取消（超时）'
   };
   const status = document.createElement('span');
   status.className = 'status';
@@ -100,10 +100,10 @@ function makeProjectCard(project) {
   status.dataset.startedAt = project.operation_started_at || project.created || '';
   card.append(status);
 
-  if (project.error || project.revision_error) {
+  if (project.error || project.revision_error || project.revision_notice) {
     const error = document.createElement('p');
-    error.textContent = project.revision_error
-      ? '修改失败，原视频已保留：' + project.revision_error : project.error;
+    error.textContent = project.revision_notice || (project.revision_error
+      ? '修改失败，原视频已保留：' + project.revision_error : project.error);
     card.append(error);
   }
   if (Array.isArray(project.warnings) && project.warnings.length) {
@@ -144,7 +144,7 @@ function makeProjectCard(project) {
     sources.textContent = '查看来源清单';
     card.append(sources, makeRevisionForm(project.id));
   }
-  if (!['new','researching','writing','classifying','rendering','revising'].includes(project.status)) {
+  if (!['new','planning_search','researching','writing','classifying','rendering','revising'].includes(project.status)) {
     // 进行中的作品不显示删除按钮，避免删掉正在写入的目录。
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -231,7 +231,7 @@ function updateTimeoutLabels() {
   for (const status of document.querySelectorAll('.status[data-active="true"]')) {
     const elapsed = Date.now() - Date.parse(status.dataset.startedAt);
     if (Number.isFinite(elapsed) && elapsed >= timeoutMs) {
-      status.textContent = '等待超时（已 ' + Math.floor(elapsed / 60000) + ' 分钟，仍在运行）';
+      status.textContent = '等待超时，正在取消…';
       status.classList.add('status-timeout');
     } else {
       status.textContent = status.dataset.baseText;

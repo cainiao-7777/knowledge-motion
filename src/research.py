@@ -9,6 +9,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from src.language import to_simplified
+from src.cancellation import check_cancelled
 
 PINYIN_NAME_CHARS={
     'yu':['瑜','玉','雨','宇','羽','妤','语','禹','钰'],
@@ -39,14 +40,17 @@ def extract_search_query(topic):
     text=' '.join(text.split()).strip()
     return (text or topic.strip()), bool(re.search(r'(书|小说|著作|作者)',topic))
 
-def fetch_json(url, timeout=18, attempts=3):
+def fetch_json(url, timeout=18, attempts=3, cancel_event=None):
     # 短暂网络错误时有限重试；耗尽后让上层显示清楚的搜索失败状态。
     last_error=None
     for attempt in range(attempts):
+        check_cancelled(cancel_event)
         request=urllib.request.Request(url,headers={'User-Agent':'KnowledgeMotion/0.1 (educational student project)'})
         try:
             with urllib.request.urlopen(request,timeout=timeout) as response:
-                return json.load(response)
+                result=json.load(response)
+            check_cancelled(cancel_event)
+            return result
         except (OSError,ValueError) as exc:
             last_error=exc
             if attempt+1<attempts:
@@ -91,13 +95,13 @@ def rank_sources(sources, query, is_book, candidates=(), prefer_best=False):
     ranked=[s for s in ranked if score(s)>0]
     return ranked
 
-def spelling_suggestions(query):
+def spelling_suggestions(query, cancel_event=None):
     # Google 自动补全只扩展搜索词，不会作为引用来源展示给观众。
     """Use public search autocomplete only to expand queries, never as a citation."""
     # 只取候选搜索词；自动补全本身不会被列为资料来源。
     params=urllib.parse.urlencode({'client':'firefox','hl':'zh-CN','q':query})
     try:
-        result=fetch_json('https://suggestqueries.google.com/complete/search?'+params,timeout=8,attempts=1)
+        result=fetch_json('https://suggestqueries.google.com/complete/search?'+params,timeout=8,attempts=1,cancel_event=cancel_event)
     except (OSError,ValueError):
         return []
     suggestions=result[1] if isinstance(result,list) and len(result)>1 and isinstance(result[1],list) else []
@@ -134,7 +138,7 @@ class _DuckDuckGoParser(HTMLParser):
         if self.current is not None and self.capture in ('title','snippet'):
             self.current[self.capture]+=data
 
-def browser_search(query):
+def browser_search(query, cancel_event=None):
     # 读取 DuckDuckGo 网页标题、真实链接和摘要，补充百科之外的网页资料。
     """Parse public DuckDuckGo web results; autocomplete suggestions are not citations."""
     # 普通网页搜索补充百科；最终只保留有效 HTTPS 页面链接。
@@ -142,8 +146,10 @@ def browser_search(query):
     url='https://html.duckduckgo.com/html/?'+params
     request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'})
     try:
+        check_cancelled(cancel_event)
         with urllib.request.urlopen(request,timeout=18) as response:
             parser=_DuckDuckGoParser();parser.feed(response.read().decode('utf-8','replace'))
+        check_cancelled(cancel_event)
     except (OSError,ValueError):
         return []
     results=[]
@@ -183,13 +189,13 @@ def expand_name_candidates(query, suggestions):
             result.append(candidate)
     return result[:8]
 
-def search_sources(topic, planned_queries=None, planned_topic=None):
+def search_sources(topic, planned_queries=None, planned_topic=None, cancel_event=None):
     # 汇合模糊候选、百科、普通网页和书目，再筛选和去重。
     if not topic or not topic.strip():
         raise ResearchError('请输入知识主题')
     core,is_book=extract_search_query(topic)
     items=[]
-    suggestions=spelling_suggestions(core)
+    suggestions=spelling_suggestions(core,cancel_event=cancel_event)
     candidates=expand_name_candidates(core,suggestions)
     fuzzy_name=bool(re.fullmatch(r'[\u3400-\u9fff]+[A-Za-z]+',core))
     # 模型规划词排前，保留原词和拼写候选以防规划遗漏实体。
@@ -204,10 +210,11 @@ def search_sources(topic, planned_queries=None, planned_topic=None):
         languages.append('en')
     # 先对主题和纠正候选搜百科，再补网页搜索和书目目录。
     for candidate in queries:
+        check_cancelled(cancel_event)
         for language in languages:
             query=urllib.parse.urlencode({'action':'query','list':'search','srsearch':candidate,'srlimit':5,'format':'json','utf8':1})
             try:
-                raw=fetch_json(f'https://{language}.wikipedia.org/w/api.php?{query}',attempts=2)
+                raw=fetch_json(f'https://{language}.wikipedia.org/w/api.php?{query}',attempts=2,cancel_event=cancel_event)
                 for item in raw['query']['search']:
                     title=item['title']
                     snippet=html.unescape(re.sub(r'<[^>]*>','',item.get('snippet','')))
@@ -218,14 +225,16 @@ def search_sources(topic, planned_queries=None, planned_topic=None):
 
     # Add ordinary web pages so the retriever is not limited to encyclopedias.
     for candidate in queries[:3]:
-        items.extend(browser_search(candidate))
+        check_cancelled(cancel_event)
+        items.extend(browser_search(candidate,cancel_event=cancel_event))
 
     # Long prompts and book titles are often poorly covered by an encyclopedia
     # search, so add catalog metadata instead of treating a weak search as empty.
     if is_book or len(items)<3:
         try:
+            check_cancelled(cancel_event)
             params=urllib.parse.urlencode({'title':core,'limit':5})
-            catalog=fetch_json('https://openlibrary.org/search.json?'+params,timeout=15)
+            catalog=fetch_json('https://openlibrary.org/search.json?'+params,timeout=15,cancel_event=cancel_event)
             for record in catalog.get('docs',[]):
                 title=record.get('title')
                 key=record.get('key')

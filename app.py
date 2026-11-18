@@ -6,7 +6,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from src.projects import list_projects, load_project, project_dir, delete_project, ProjectError
+from src.projects import list_projects, load_project, save_project, project_dir, delete_project, ProjectError
 from src.pipeline import create_video_project, revise_video_project
 
 # 以 app.py 所在目录作为项目根目录，工作目录变化也不会影响资源定位。
@@ -20,18 +20,29 @@ active_revisions=set()
 revision_lock=threading.Lock()
 # 新作品渲染很耗时，暂时一次只允许一个新生成任务。
 generation_lock=threading.Lock()
+OPERATION_TIMEOUT_SECONDS=5*60
 
-def generation_worker(topic):
+def run_with_timeout(cancel_event, operation, *args):
+    # The event lets pipeline stages stop cooperatively at the five-minute limit.
+    timer=threading.Timer(OPERATION_TIMEOUT_SECONDS,cancel_event.set)
+    timer.daemon=True
+    timer.start()
+    try:
+        operation(*args,cancel_event=cancel_event)
+    finally:
+        timer.cancel()
+
+def generation_worker(topic, cancel_event):
     # 在线程里运行生成流程，HTTP 请求可先返回，不必等视频渲染结束。
     try:
-        create_video_project(OUTPUT,topic)
+        run_with_timeout(cancel_event,create_video_project,OUTPUT,topic)
     finally:
         generation_lock.release()
 
-def revise_worker(project_id, instruction):
+def revise_worker(project_id, instruction, cancel_event):
     # 无论修改成功还是失败，都要解除“正在修改”标记。
     try:
-        revise_video_project(OUTPUT,project_id,instruction)
+        run_with_timeout(cancel_event,revise_video_project,OUTPUT,project_id,instruction)
     finally:
         with revision_lock:
             active_revisions.discard(project_id)
@@ -158,7 +169,8 @@ class Handler(BaseHTTPRequestHandler):
                     if project['status'] != 'complete':
                         return self.reply_json(409,{'error':'作品尚未完成或正在修改'})
                     active_revisions.add(project_id)
-                threading.Thread(target=revise_worker,args=(project_id,instruction),daemon=True).start()
+                cancel_event=threading.Event()
+                threading.Thread(target=revise_worker,args=(project_id,instruction,cancel_event),daemon=True).start()
                 return self.reply_json(202,{'message':'正在修改，原视频会保留'})
             topic=payload.get('topic','').strip()
             if not topic or len(topic)>150: raise ValueError()
@@ -168,7 +180,8 @@ class Handler(BaseHTTPRequestHandler):
             # 有生成任务时直接返回409，不让第二个任务静默排队。
             return self.reply_json(409,{'error':'已有视频正在生成，请等待完成'})
         try:
-            threading.Thread(target=generation_worker,args=(topic,),daemon=True).start()
+            cancel_event=threading.Event()
+            threading.Thread(target=generation_worker,args=(topic,cancel_event),daemon=True).start()
         except Exception:
             generation_lock.release()
             raise
@@ -186,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
             # 只有完成或失败的作品可删除；锁防止和修改线程竞争。
             with revision_lock:
                 project=load_project(OUTPUT,parts[2])
-                if parts[2] in active_revisions or project.get('status') in ('new','researching','writing','classifying','rendering','revising'):
+                if parts[2] in active_revisions or project.get('status') in ('new','planning_search','researching','writing','classifying','rendering','revising'):
                     return self.reply_json(409,{'error':'作品正在生成或修改，暂时不能删除'})
                 delete_project(OUTPUT,parts[2])
         except ProjectError as exc:
@@ -195,7 +208,29 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply_json(500,{'error':'删除失败，请确认项目文件未被其他程序占用'})
         return self.reply_json(200,{'message':'作品及其本地文件已删除'})
 
+def recover_interrupted_projects():
+    # Restarted servers cannot resume Python worker threads; close stale statuses safely.
+    for project in list_projects(OUTPUT):
+        if project.get('status') not in ('new','planning_search','researching','writing','classifying','rendering','revising'):
+            continue
+        folder=project_dir(OUTPUT,project['id'])
+        for partial in folder.glob('candidate-*.mp4'):
+            partial.unlink(missing_ok=True)
+        video=folder/'video.mp4'
+        if project.get('status')=='revising' and video.is_file():
+            project['status']='complete'
+            project['revision_notice']='服务重启时，本次修改已中断，原视频已保留。'
+        elif project.get('status')=='rendering' and video.is_file() and video.stat().st_size>0:
+            project['status']='complete'
+            project['error']=''
+        else:
+            project['status']='cancelled'
+            project['error']='服务重启时，生成任务已中断。'
+        save_project(OUTPUT,project)
+
 if __name__=='__main__':
     # 直接运行 python app.py 时启动本机开发服务器。
+    # 上次进程中断后，线程无法恢复；先收尾遗留的活动状态。
+    recover_interrupted_projects()
     print(f'知识动画工作台：http://127.0.0.1:{PORT}',flush=True)
     ThreadingHTTPServer(('127.0.0.1',PORT),Handler).serve_forever()

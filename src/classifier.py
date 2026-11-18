@@ -6,6 +6,7 @@ import json
 import os
 import re
 import urllib.request
+from src.cancellation import check_cancelled
 
 class ClassificationError(RuntimeError): pass
 
@@ -61,10 +62,11 @@ def apply_scene_labels(scenes, labels):
         report.append({'predicted':label,'requested':requested,'chosen':chosen})
     return report
 
-def classify_scenes(scenes):
+def classify_scenes(scenes,cancel_event=None):
     # 每幕单独请求 Ollama，避免小模型批量输出时重复同一个标签。
     labels=[]
     for scene in scenes:
+        check_cancelled(cancel_event)
         # 只传与布局有关的数据，避免大段素材挤占小模型的上下文。
         data = scene.get('data')
         allowed_labels = LABELS
@@ -91,6 +93,7 @@ def classify_scenes(scenes):
         req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=json.dumps(payload,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
         try:
             with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)
+            check_cancelled(cancel_event)
             label=json.loads(result.get('response','')).get('label')
             if label not in allowed_labels: raise ClassificationError('小模型返回的分镜类别无效')
             labels.append(label)

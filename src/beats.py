@@ -1,5 +1,6 @@
 """Estimate a stable beat grid from positive low-frequency onset changes."""
 import subprocess
+from src.cancellation import check_cancelled
 import numpy as np
 
 def detect_peaks(energies, hop_seconds, min_spacing=0.3):
@@ -50,12 +51,26 @@ def estimate_beat_grid(onset_strength, hop_seconds, duration):
         t+=period
     return beats
 
-def analyze_music(path, max_seconds=90):
+def analyze_music(path, max_seconds=90, cancel_event=None):
     # FFmpeg 解码本地歌曲；只分析低频能量的正向变化，以近似鼓点攻击。
     sample_rate=11025
     cmd=['ffmpeg','-v','error','-i',str(path),'-t',str(max_seconds),'-f','s16le','-ac','1','-ar',str(sample_rate),'pipe:1']
-    result=subprocess.run(cmd,capture_output=True,check=True)
-    samples=np.frombuffer(result.stdout,dtype='<i2').astype(float)/32768.0
+    check_cancelled(cancel_event)
+    proc=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    while True:
+        try:
+            output,error=proc.communicate(timeout=0.1)
+            break
+        except subprocess.TimeoutExpired:
+            if cancel_event is not None and cancel_event.is_set():
+                proc.terminate()
+                try: proc.communicate(timeout=2)
+                except subprocess.TimeoutExpired: proc.kill();proc.communicate()
+                check_cancelled(cancel_event)
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode,cmd,output=output,stderr=error)
+    check_cancelled(cancel_event)
+    samples=np.frombuffer(output,dtype='<i2').astype(float)/32768.0
     duration=len(samples)/sample_rate
     size=2048; hop=1102; window=np.hanning(size)
     frequencies=np.fft.rfftfreq(size,1/sample_rate)

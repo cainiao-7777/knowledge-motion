@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from src.storyboard import validate_storyboard
 from src.style import choose_palette, contrast
 from src.audio import create_effects_track
+from src.cancellation import check_cancelled
 
 WIDTH, HEIGHT, FPS = 1280, 720, 24
 
@@ -221,12 +222,13 @@ def apply_rhythm_motion(image, intensity, beat_index):
     top=max(0,min(extra_y,extra_y//2+nudge_y))
     return scaled.crop((left,top,left+width,top+height))
 
-def render_video(storyboard, destination, music=None, beats=None):
+def render_video(storyboard, destination, music=None, beats=None, cancel_event=None):
     # 将故事板逐帧交给 FFmpeg；画面和音频合成成功后才替换成片。
     validate_storyboard(storyboard)
     if not shutil.which('ffmpeg'):
         raise RuntimeError('未找到 FFmpeg，请先安装并配置 PATH')
     destination=Path(destination)
+    check_cancelled(cancel_event)
     destination.parent.mkdir(parents=True,exist_ok=True)
     # A temporary output prevents a failed render from destroying a previous video.
     with tempfile.TemporaryDirectory(dir=destination.parent) as temp:
@@ -240,6 +242,7 @@ def render_video(storyboard, destination, music=None, beats=None):
             for index,scene in enumerate(storyboard['scenes'],1):
                 count=round(scene['duration_seconds']*FPS)
                 for frame in range(count):
+                    check_cancelled(cancel_event)
                     global_time=elapsed+frame/FPS
                     # 只取当前附近的拍点，用脉冲强度驱动短暂推近和抖动。
                     active=[(beat_index,beat) for beat_index,beat in enumerate(beats) if abs(global_time-beat)<0.18]
@@ -257,6 +260,7 @@ def render_video(storyboard, destination, music=None, beats=None):
             proc.stdin.close()
             error=proc.stderr.read().decode('utf-8','replace')
             if proc.wait()!=0: raise RuntimeError('视频渲染失败：'+error[-500:])
+            check_cancelled(cancel_event)
         except BaseException:
             proc.kill()
             proc.wait()
@@ -274,8 +278,19 @@ def render_video(storyboard, destination, music=None, beats=None):
             # 配乐降低电平并在结束前淡出，再叠加单独生成的转场音效。
             audio_filter=f'[1:a]volume=0.48,afade=t=out:st={fade_start}:d={fade_duration},apad[music];[music][2:a]amix=inputs=2:duration=shortest:normalize=0[a]'
             cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(silent),'-i',str(music),'-i',str(effects),'-filter_complex',audio_filter,'-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-shortest',str(completed)]
-            result=subprocess.run(cmd,capture_output=True,text=True,encoding='utf-8',errors='replace')
-            if result.returncode: raise RuntimeError('音乐合成失败：'+result.stderr[-500:])
+            proc=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',errors='replace')
+            while True:
+                try:
+                    _,error=proc.communicate(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    if cancel_event is not None and cancel_event.is_set():
+                        proc.terminate()
+                        try: _,error=proc.communicate(timeout=2)
+                        except subprocess.TimeoutExpired: proc.kill();_,error=proc.communicate()
+                        check_cancelled(cancel_event)
+            if proc.returncode: raise RuntimeError('音乐合成失败：'+error[-500:])
+            check_cancelled(cancel_event)
             os.replace(completed,destination)
         else:
             os.replace(silent,destination)
