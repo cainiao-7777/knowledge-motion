@@ -89,6 +89,8 @@ function makeProjectCard(project) {
   // 把服务器保存的一条 project.json 记录渲染成作品卡片。
   const card = document.createElement('article');
   card.className = 'project';
+  // 状态文字便于阅读，颜色辅助区分失败、取消和运行中。
+  card.dataset.state = project.status;
   const title = document.createElement('strong');
   title.textContent = project.topic;
   card.append(title);

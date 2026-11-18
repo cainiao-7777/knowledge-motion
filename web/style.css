@@ -1,14 +1,90 @@
-/* 颜色变量集中定义，页面组件复用同一套深色工作台配色。 */
-:root{color-scheme:dark;--bg:#0b0d17;--card:#151827;--line:#35374e;--text:#f2f0fa;--muted:#b9bacd;--accent:#b5a1ff}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 'Microsoft YaHei',sans-serif}
-main{max-width:1100px;margin:auto;padding:40px 24px 80px}header{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid var(--line);padding-bottom:16px;color:var(--muted)}
-.eyebrow{color:var(--accent);font-size:13px;letter-spacing:.16em;margin-top:58px}h1{font-size:clamp(32px,5vw,52px);line-height:1.2;margin:10px 0 18px}h2{font-size:22px}
-/* 首屏按介绍、输入区和流程说明分栏；窄屏时在下方媒体规则改为单列。 */
-.intro{color:var(--muted);max-width:700px}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;margin-top:36px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
-label{display:block;font-weight:600;margin:12px 0 8px}textarea{font:inherit;color:var(--text);background:#0d101e;border:1px solid #656783;border-radius:10px;width:100%;min-height:120px;padding:14px;resize:vertical}
-button{font:inherit;min-height:46px;padding:10px 22px;border:0;border-radius:9px;background:var(--accent);color:#171225;font-weight:700;cursor:pointer;margin-top:16px}button:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #fff;outline-offset:3px}button:disabled{opacity:.6}
-/* 作品区样式包含状态提示、播放器、可拖动滑杆和删除等动作按钮。 */
-.hint,.muted{color:var(--muted);font-size:14px}.project{padding:18px 0;border-top:1px solid var(--line)}.project strong{display:block;font-size:18px}.status{color:var(--accent);font-size:14px}.status-timeout{color:#ffd27a}.normalization-warning{color:#ffd27a;font-size:14px}a{color:#d2c5ff;overflow-wrap:anywhere}video{width:100%;margin-top:12px;border-radius:8px;background:#000}.seekbar{display:block;width:100%;height:28px;margin:3px 0 16px;accent-color:var(--accent);cursor:pointer}.seekbar:disabled{cursor:wait;opacity:.5}.sources{font-size:14px}.message{min-height:24px;color:#e9d5ff}
-.project-action-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px}.project-action-row button{margin:0;min-height:46px}.project-action-feedback{margin:0 auto 0 0}.delete-project{background:transparent;border:1px solid #7f6883;color:#e9d5ff}.pause-revision{background:#ffd27a;color:#21180a}.active-project-actions{padding-bottom:4px}
-input[type="search"]{font:inherit;color:var(--text);background:#0d101e;border:1px solid #656783;border-radius:9px;width:100%;min-height:46px;padding:10px 14px}input[type="search"]:focus-visible{outline:3px solid #fff;outline-offset:3px}.collection-controls{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0}.collection-controls button{min-height:38px;margin:0 6px;padding:6px 14px}.page-info{color:var(--muted);font-variant-numeric:tabular-nums}
-@media(max-width:760px){.grid{grid-template-columns:1fr}header{display:block}.eyebrow{margin-top:35px}}
+/* 书封、纸页、荧光索引三组颜色贯穿创作和馆藏。字体优先读取本机。 */
+:root {
+  color-scheme: dark;
+  --ink:#101c20; --panel:#18292c; --well:#102023; --line:#3b5556;
+  --paper:#f0ebdb; --muted:#b2c3bb; --mint:#a9efcf; --brass:#dfbd89; --rose:#f0b5ae;
+  --serif: "Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans: "Microsoft YaHei UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono: "IBM Plex Mono",Consolas,monospace;
+}
+* {box-sizing:border-box}
+body {margin:0;background:radial-gradient(ellipse at 77% 8%,#1d3537,transparent 42rem),var(--ink);color:var(--paper);font:16px/1.65 var(--sans)}
+a {color:var(--mint);text-underline-offset:4px}
+.wrap {width:min(1140px,calc(100% - 64px));margin-inline:auto}
+.mast {border-bottom:1px solid var(--line);background:#111f22}
+.mast-inner,nav,.brand,.submit-row,.catalog-head,.collection-controls,.project-action-row {display:flex;align-items:center}
+.mast-inner,.catalog-head,.submit-row {justify-content:space-between}
+.mast-inner {min-height:70px;gap:12px}
+.brand,nav a {text-decoration:none;color:var(--paper);display:inline-flex;align-items:center;min-height:44px}
+.brand {gap:12px;font:700 22px var(--serif)}
+.brand-mark {display:grid;place-items:center;width:32px;height:32px;color:var(--ink);background:var(--mint);border-radius:5px;font:26px/1 var(--mono)}
+nav {gap:24px} nav a {font-size:15px;color:var(--muted)}
+nav a:hover,a:hover {color:white}
+.skip {position:absolute;left:1rem;top:-8rem;background:var(--ink);padding:10px;z-index:1}.skip:focus {top:1rem}
+.hero {position:relative;isolation:isolate;overflow:hidden;display:grid;align-items:center;grid-template-columns:1.1fr 1fr;margin:30px 0 22px;border:1px solid var(--line);border-radius:10px;background:radial-gradient(ellipse at 77% 62%,#305252,transparent 48%),#182c30}
+.hero::before {content:"";position:absolute;inset:0;z-index:-1;background-image:linear-gradient(#9dc4ab0b 1px,transparent 1px),linear-gradient(90deg,#9dc4ab0b 1px,transparent 1px);background-size:24px 24px}
+.hero-copy {padding:34px 0 38px clamp(24px,4vw,54px)}
+.imprint,.format,#pageInfo {font-family:var(--mono),var(--sans)}
+.imprint {letter-spacing:.24em;color:var(--brass);font-size:12px}
+h1,h2,h3 {font-family:var(--serif);margin:0;line-height:1.25}
+h1 {font-size:clamp(46px,5.7vw,78px);letter-spacing:.06em;margin:10px 0 14px}
+.hero p {color:var(--muted);margin:0}
+.engraving {max-width:490px;padding:12px 14px 4px;width:100%;justify-self:center}
+.engraving svg {display:block;width:100%;height:auto}
+.studio {display:grid;grid-template-columns:minmax(0,1.9fr) minmax(230px,1fr);border-radius:10px;border:1px solid var(--line);background:var(--panel);overflow:hidden}
+.desk,.guide,.project {padding:clamp(18px,2.7vw,34px)}
+h2 {font-size:clamp(28px,3vw,38px)}
+.guide {border-left:1px solid var(--line);background:#192f30}
+.guide h3 {color:var(--brass);font-size:23px}
+.guide ol {padding-left:1.8em;margin:20px 0;list-style:decimal-leading-zero}
+.guide li {padding-left:9px;margin:9px 0}
+.guide li::marker {color:var(--mint);font:14px var(--mono)}
+.guide p,.muted,.format {color:var(--muted);font-size:14px}
+label {display:block;font-weight:600;margin:14px 0 7px}
+textarea,input {display:block;width:100%;background:var(--well);border:1px solid #617979;border-radius:5px;color:var(--paper);font:inherit;padding:10px 14px}
+textarea {min-height:86px;resize:vertical}
+textarea::placeholder,input::placeholder {color:#a3b8b2}
+button {min-height:46px;border:1px solid transparent;border-radius:5px;padding:8px 17px;cursor:pointer;background:var(--mint);color:#102925;font:600 16px/1.4 var(--sans)}
+button:hover:enabled {filter:brightness(1.12)}
+button:disabled {opacity:.55;cursor:default}
+:focus-visible {outline:3px solid var(--brass);outline-offset:3px}
+.submit-row {gap:10px;flex-wrap:wrap;margin-top:14px}
+#submit span {margin-left:10px}
+.message {color:var(--mint);margin:10px 0 0}.message:empty {display:none}
+#collection {margin:44px 0 70px}
+.catalog-head {align-items:flex-end;gap:20px;padding-bottom:16px;border-bottom:2px solid var(--brass)}
+.search {margin:0;width:min(340px,100%);font-size:14px;color:var(--muted)}
+.search input {margin-top:4px;font-size:16px}
+#projects {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:16px;margin-top:20px}
+.project {min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow-wrap:anywhere}
+.project strong {display:block;font:700 clamp(21px,2vw,26px)/1.45 var(--serif)}
+.status {display:inline-block;color:var(--mint);font-size:14px;margin:5px 0}
+.status[data-active=true],.status-timeout,.normalization-warning,.pause-revision {color:var(--brass)}
+.project[data-state=error] .status,.project[data-state=cancelled] .status {color:var(--rose)}
+video {width:100%;display:block;aspect-ratio:16/9;background:#080f10;border-radius:4px;margin-top:12px}
+.seekbar {padding:0;height:44px;accent-color:var(--mint);cursor:pointer}
+.project a {display:inline-flex;align-items:center;min-height:44px}
+.project label {font-size:15px;color:var(--muted)}
+.project textarea {margin-top:7px}
+.project-action-row,.collection-controls {gap:10px;justify-content:flex-end;margin-top:15px;flex-wrap:wrap}
+.project-action-feedback:not(:empty) {flex:1 1 100%}
+.delete-project,.pause-revision,.collection-controls button {background:var(--well);border-color:var(--line);color:var(--paper)}
+.delete-project {color:var(--rose)}.pause-revision {color:var(--brass)}
+.collection-controls {justify-content:center;margin-top:24px}
+#studio,#collection {scroll-margin-top:16px}
+@media(max-width:780px){
+  .wrap {width:calc(100% - 32px)}
+  #projects {grid-template-columns:1fr}
+  .studio {grid-template-columns:minmax(0,1.55fr) minmax(190px,1fr)}
+}
+@media(max-width:600px){
+  .mast-inner {min-height:56px} nav {gap:16px}
+  .hero {grid-template-columns:1fr;margin-top:16px}
+  .hero-copy {padding:22px 22px 0}
+  .engraving {width:68%;max-width:260px;margin-top:-6px;justify-self:end}
+  .studio {grid-template-columns:1fr}
+  .guide {border-left:0;border-top:1px solid var(--line)}
+  .guide ol {margin:10px 0}.guide p {margin-bottom:0}
+  .catalog-head {align-items:stretch;flex-direction:column;gap:12px}.search {width:100%}
+  #collection {margin-top:30px}
+}

@@ -1,18 +1,42 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
+<html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>知识大赏 · 创作工作台</title>
-<link rel="stylesheet" href="/assets/style.css">
-</head>
-<body><main>
-<!-- 顶部品牌和固定输出信息。 -->
-<header><span>KNOWLEDGE MOTION / 知识动画工作台</span><span>本地作品 · 中文 · 16:9</span></header>
-<div class="eyebrow">从一个问题开始</div><h1>把知识，变成画面。</h1>
-<p class="intro">输入一个知识主题，系统检索资料、生成分镜并制作无旁白视频。当前是开发中的基础版本，内容和视觉效果仍需人工检查。</p>
-<!-- 创作表单收集主题；右侧只解释生成流程。 -->
-<div class="grid"><section class="card"><h2>创建视频</h2><form id="form"><label for="topic">你想讲解什么？</label><textarea id="topic" maxlength="150" required placeholder="例如：用生活中的例子解释囚徒困境"></textarea><p class="hint">将使用本机配置的百炼 API 和指定音乐。请先确认免费额度及用完即停。</p><button id="submit">开始生成</button><p class="message" id="message" role="status" aria-live="polite"></p></form></section>
-<aside class="card"><h2>生成流程</h2><p>01 · 搜集公开资料</p><p>02 · 整理讲解与分镜</p><p>03 · 制作画面并合成音乐</p><p class="hint">完成后请核对事实和资料来源。生成时间取决于模型和电脑性能。</p></aside></div>
-<!-- 搜索、分页和作品卡片均由 web/app.js 根据本机项目列表动态生成。 -->
-<section style="margin-top:50px"><h2>本地作品</h2><p class="muted">作品和来源清单保存在本机。每 5 秒更新一次状态。</p><label for="projectSearch">搜索作品</label><input id="projectSearch" type="search" maxlength="100" placeholder="输入主题、标题或来源关键词"><div class="collection-controls"><span id="projectCount" class="muted" aria-live="polite"></span><div><button id="previousPage" type="button">上一页</button><span id="pageInfo" class="page-info"></span><button id="nextPage" type="button">下一页</button></div></div><div id="projects" aria-live="polite"></div></section>
+<meta name="theme-color" content="#101c20"><title>知识大赏 · 赛博图书馆</title>
+<link rel="stylesheet" href="/assets/style.css"></head><body>
+<a class="skip" href="#studio">跳到创作区</a>
+<header class="mast"><div class="wrap mast-inner">
+<a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">▥</span>知识大赏</a>
+<nav aria-label="馆内导航"><a href="#studio">创作台</a><a href="#collection">作品馆藏</a></nav>
+</div></header>
+<main class="wrap" id="top">
+<section class="hero" aria-labelledby="library-name">
+<div class="hero-copy"><span class="imprint" lang="en">KNOWLEDGE MOTION</span><h1 id="library-name">赛博图书馆</h1>
+<p>从一句话开始，制作属于你的无旁白知识短片。</p></div>
+<div class="engraving"><svg viewBox="0 0 460 236" fill="none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <linearGradient id="cover" x2=".8" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#355959"/><stop offset="1" stop-color="#102a30"/></linearGradient>
+ <linearGradient id="paper" x1="0" x2="1" y1="1" y2="0"><stop stop-color="#245452"/><stop offset=".6" stop-color="#508780"/><stop offset="1" stop-color="#aac3ae"/></linearGradient>
+ <linearGradient id="leaf"><stop stop-color="#abd6bc"/><stop offset=".5" stop-color="#649a89"/><stop offset="1" stop-color="#305e5b"/></linearGradient>
+</defs>
+<g stroke="#62908a" opacity=".38"><ellipse cx="232" cy="178" rx="181" ry="39" stroke-dasharray="3 6"/><ellipse cx="232" cy="178" rx="151" ry="32"/><path d="M23 178h418M232 124v105" stroke-dasharray="4 8"/></g>
+<path d="M76 129l99-48 69 12 72-51 70 12-124 119-26 12z" fill="url(#cover)" stroke="#b2e1c6" stroke-width="2"/>
+<g stroke="#9cc8ad" fill="#233e40"><path transform="translate(0 9)" d="M80 115q48-31 109-53 28 0 51 24 42-42 86-57l52 16-123 112q-14-1-21 9Q167 134 80 115Z"/><path transform="translate(0 6)" d="M80 115q48-31 109-53 28 0 51 24 42-42 86-57l52 16-123 112q-14-1-21 9Q167 134 80 115Z"/><path transform="translate(0 3)" d="M80 115q48-31 109-53 28 0 51 24 42-42 86-57l52 16-123 112q-14-1-21 9Q167 134 80 115Z"/><path transform="translate(0 0)" d="M80 115q48-31 109-53 28 0 51 24 42-42 86-57l52 16-123 112q-14-1-21 9Q167 134 80 115Z"/></g>
+<path d="M80 115q48-32 109-53 27-1 51 24l-6 80Q173 134 80 115Z" fill="url(#paper)" stroke="#b1dac1"/>
+<path d="M234 166l6-80q34-43 74-70 32 2 61 21-60 52-141 129Z" fill="url(#leaf)" stroke="#c1e5c8"/>
+<g stroke="#335a52" stroke-width="1.6"><path d="M101 112q47-30 93-49"/><path d="M254 85q31-33 61-51"/><path d="M115 115.9q47-30 93-49"/><path d="M258.5 89.5q31-33 61-51"/><path d="M129 119.8q47-30 93-49"/><path d="M263 94q31-33 61-51"/><path d="M143 123.7q47-30 93-49"/><path d="M267.5 98.5q31-33 61-51"/><path d="M157 127.6q47-30 93-49"/><path d="M272 103q31-33 61-51"/><path d="M171 131.5q47-30 93-49"/><path d="M276.5 107.5q31-33 61-51"/><path d="M185 135.4q47-30 93-49"/><path d="M281 112q31-33 61-51"/></g>
+<path d="M265 140l18-17 11 9 4-14 44-44-10-3z" fill="#d0a770"/>
+<g stroke="#92bbb2" stroke-width="1"><path d="M57 76h25l24 18M364 132l16-16h33" stroke-dasharray="3 3"/><circle cx="57" cy="76" r="3"/><circle cx="414" cy="116" r="3"/></g></svg></div></section>
+<section id="studio" class="studio">
+<div class="desk"><h2>创作台</h2>
+<form id="form"><label for="topic">你想讲解什么？</label>
+<textarea id="topic" maxlength="150" required placeholder="例如：用生活中的例子讲明白囚徒困境"></textarea>
+<div class="submit-row"><span class="format">简体中文 · 无旁白 · 16:9</span><button id="submit">开始生成 <span aria-hidden="true">↗</span></button></div>
+<p id="message" class="message" role="status"></p></form></div>
+<aside class="guide"><h3>制作流程</h3><ol><li>提炼主题，检索资料</li><li>编排分镜与画面</li><li>跟随配乐渲染成片</li></ol>
+<p>生成和修改会使用百炼额度。成片与来源清单保存在本机。</p></aside></section>
+<section id="collection" aria-labelledby="collection-title">
+<div class="catalog-head"><div><h2 id="collection-title">作品馆藏</h2><span id="projectCount" class="muted" aria-live="polite"></span></div>
+<label class="search"><span>检索馆藏</span><input id="projectSearch" type="search" maxlength="100" placeholder="搜索主题、标题或来源"></label></div>
+<div id="projects" aria-live="polite">正在读取本地作品…</div>
+<div class="collection-controls" aria-label="馆藏分页"><button id="previousPage" type="button">上一页</button><span id="pageInfo"></span><button id="nextPage" type="button">下一页</button></div></section>
 </main><script src="/assets/app.js"></script></body></html>

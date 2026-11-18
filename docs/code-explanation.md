@@ -23,7 +23,7 @@ web/index.html 表单
 
 ### web/style.css
 
-定义页面颜色、卡片、按钮、焦点和窄屏布局。`.seekbar` 是视频下方可拖动的时间滑杆；`.status-timeout` 标记取消中的超时任务；`.delete-project` 突出删除操作。
+赛博图书馆采用深墨绿背景、纸白色宋体标题与薄荷绿主按钮。首页以本地矢量书页做插画。作品馆藏在宽屏排成两列，宽度不超过 780 像素时改为单列。`.seekbar` 是视频下方可拖动的时间滑杆；`.status-timeout` 标记取消中的超时任务；`.delete-project` 突出删除操作。
 
 ### web/app.js
 
