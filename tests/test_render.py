@@ -2,6 +2,7 @@ import unittest
 from src.render import draw_scene
 
 class RenderTests(unittest.TestCase):
+    # 这些测试检查单帧尺寸，以及不同布局数据能否改变画面。
     def test_renders_expected_frame_size(self):
         scene={'text':'合作与背叛','visual_description':'两个选择','duration_seconds':8,'type':'concept','data':{}}
         frame=draw_scene('囚徒困境',scene,0.5,1,4)

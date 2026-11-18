@@ -124,3 +124,8 @@ web/index.html 表单
 作品卡片只对已完成或失败的项目显示“删除作品”。点击后 `window.confirm()` 明确列出将删除视频、来源和历史；用户取消时不发请求。确认后发送 `DELETE /api/projects/<UUID>`。
 
 `app.py` 的 `do_DELETE()` 再验证 Host、Origin 和 UUID 对应项目状态；正在生成/修改的项目返回409，避免删除活跃任务。`src/projects.py` 的 `delete_project()` 只删除该 UUID 的项目目录。这个操作会释放本地磁盘空间，但会永久移除该作品的视频、`project.json`、来源清单和历史版本，无法从工作台恢复。
+
+
+## 源码旁注
+
+关键函数、流程边界和容易误解的逻辑已直接用中文注释放在源码旁。Python 使用 `#`，JavaScript 使用 `//`，CSS/HTML 使用各自的注释格式。这些注释解释代码“为什么这样写”和数据如何流动；函数名称与参数仍应结合本说明阅读。JSON 示例保持合法 JSON，因此不在数据文件内插注释。

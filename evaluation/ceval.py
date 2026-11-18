@@ -9,10 +9,12 @@ from src.classifier import DEFAULT_MODEL
 from src.evaluation import score_answers
 
 def post_json(url, body, headers=None, timeout=120):
+    # 云端和本地模型的请求都返回 JSON，因此共用这一层 HTTP 包装。
     request=urllib.request.Request(url,data=json.dumps(body,ensure_ascii=False).encode('utf-8'),headers={'Content-Type':'application/json',**(headers or {})})
     with urllib.request.urlopen(request,timeout=timeout) as response: return json.load(response)
 
 def run():
+    # 读取公开验证题，让两个模型使用同一题目集合进行小样本对照。
     rows=json.loads(Path('data/ceval_computer_network_val.json').read_text(encoding='utf-8'))
     items=rows[:10]
     questions=[{k:row[k] for k in ('question','A','B','C','D')} for row in items]

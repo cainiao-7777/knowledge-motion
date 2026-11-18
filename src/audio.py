@@ -3,6 +3,7 @@ import wave
 import numpy as np
 
 def create_effects_track(path,duration,positions):
+    # 合成短低频重击和极短噪声起音；位置由镜头切换时间提供。
     rate=22050
     count=round(duration*rate)
     signal=np.zeros(count,dtype=np.float32)

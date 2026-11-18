@@ -1,3 +1,4 @@
+// 缓存页面控件；搜索和分页状态只存在浏览器内，不改变磁盘项目数据。
 const form = document.getElementById('form');
 const message = document.getElementById('message');
 const projects = document.getElementById('projects');
@@ -12,6 +13,7 @@ let currentPage = 1;
 const pageSize = 6;
 
 async function postJson(url, body) {
+  // 新建和修改都发送 JSON，并把服务端返回的状态消息交回页面。
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -21,6 +23,7 @@ async function postJson(url, body) {
 }
 
 form.addEventListener('submit', async (event) => {
+  // 新建作品：先阻止浏览器默认刷新，再把主题交给本机 API。
   event.preventDefault();
   const button = document.getElementById('submit');
   button.disabled = true;
@@ -39,6 +42,7 @@ form.addEventListener('submit', async (event) => {
 });
 
 function makeRevisionForm(projectId) {
+  // 为单个作品创建自然语言修改表单，项目编号决定修改目标。
   const form = document.createElement('form');
   const label = document.createElement('label');
   label.textContent = '用一句话修改这个作品';
@@ -76,6 +80,7 @@ function makeRevisionForm(projectId) {
 }
 
 function makeProjectCard(project) {
+  // 把服务器保存的一条 project.json 记录渲染成作品卡片。
   const card = document.createElement('article');
   card.className = 'project';
   const title = document.createElement('strong');
@@ -112,6 +117,7 @@ function makeProjectCard(project) {
     video.controls = true;
     video.preload = 'metadata';
     video.src = '/files/' + project.id + '/video.mp4';
+    // 自定义滑杆把0–1000映射到视频时长；Range请求由app.py支持。
     const seek = document.createElement('input');
     seek.type = 'range';
     seek.className = 'seekbar';
@@ -139,6 +145,7 @@ function makeProjectCard(project) {
     card.append(sources, makeRevisionForm(project.id));
   }
   if (!['new','researching','writing','classifying','rendering','revising'].includes(project.status)) {
+    // 进行中的作品不显示删除按钮，避免删掉正在写入的目录。
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'delete-project';
@@ -164,6 +171,7 @@ function makeProjectCard(project) {
 }
 
 function searchableProjectText(project) {
+  // 把主题、分镜和来源合为可检索文本，不下载视频内容参与搜索。
   const story = project.storyboard || {};
   const scenes = Array.isArray(story.scenes) ? story.scenes : [];
   const sources = Array.isArray(project.sources) ? project.sources : [];
@@ -174,6 +182,7 @@ function searchableProjectText(project) {
 }
 
 function renderProjects() {
+  // 先过滤再分页；过滤条件变化时页码回到第1页。
   const query = projectSearch.value.trim().toLocaleLowerCase();
   const filtered = allProjects.filter(project => !query || searchableProjectText(project).includes(query));
   const pageCount = Math.max(1,Math.ceil(filtered.length/pageSize));
@@ -199,6 +208,7 @@ previousPage.addEventListener('click',() => { currentPage=Math.max(1,currentPage
 nextPage.addEventListener('click',() => { currentPage+=1; renderProjects(); });
 
 async function refresh() {
+  // 周期性同步状态；数据未变时不重建播放器，避免重置播放位置。
   try {
     const response = await fetch('/api/projects');
     const items = await response.json();
@@ -216,6 +226,7 @@ async function refresh() {
 }
 
 function updateTimeoutLabels() {
+  // 仅给长时间活动的任务加提示，不在前端终止后台任务。
   const timeoutMs = 5 * 60 * 1000;
   for (const status of document.querySelectorAll('.status[data-active="true"]')) {
     const elapsed = Date.now() - Date.parse(status.dataset.startedAt);

@@ -2,6 +2,7 @@ import unittest
 from src.evaluation import score_answers
 
 class EvaluationTests(unittest.TestCase):
+    # 检查小样本正确率统计和无效答案长度处理。
     def test_calculates_score_and_records_wrong_answers(self):
         items=[{'id':1,'answer':'A'},{'id':2,'answer':'B'}]
         report=score_answers(items,['A','C'])

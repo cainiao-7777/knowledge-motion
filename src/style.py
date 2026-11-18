@@ -4,6 +4,7 @@ import re
 DEFAULT={'background':'#0a0c17','accent':'#a690ef','secondary':'#66718a','canvas':'dark','motif':'none','style':'editorial'}
 def resolve_motif(description):
     """Map a free-form art direction to drawing primitives the renderer can make."""
+    # 这是渲染器能力映射，不限制大模型写什么视觉隐喻。
     text=(description or '').casefold()
     if any(word in text for word in ('mask','ice','crack','fracture','面具','薄冰','裂纹','裂缝','冰面')): return 'fracture'
     if any(word in text for word in ('butterfly','wing','蝴蝶','翅膀')): return 'butterfly'
@@ -16,6 +17,7 @@ def resolve_motif(description):
     return 'none'
 
 def resolve_layout(description, motif):
+    # 从自由构图描述中挑当前绘图器可以实现的布局方向。
     text=(description or '').casefold()
     if any(word in text for word in ('centered','center composition','central focal','居中','中心构图','中心对称','几何中心','中央聚焦')): return 'center'
     if any(word in text for word in ('lower-left','lower-right','corner','asymmetric','偏左下','偏右下','角落','不对称','大面积空白')): return 'asymmetric'
@@ -33,6 +35,7 @@ def contrast(a,b):
     return (x+0.05)/(y+0.05)
 
 def choose_palette(value):
+    # 只接受合法颜色；对比不足时回退或替换辅助色，保障文字可读。
     if not isinstance(value,dict): return DEFAULT.copy()
     def extract_color(raw):
         if not isinstance(raw,str): return ''

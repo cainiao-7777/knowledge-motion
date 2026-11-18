@@ -4,6 +4,7 @@ from src.generator import extract_json, generate_storyboard, GenerationError
 from src.research import normalize_results
 
 class GeneratorTests(unittest.TestCase):
+    # 检查 JSON 提取、缺密钥保护，以及检索来源链接过滤。
     def test_fenced_json_can_be_parsed(self):
         self.assertEqual(extract_json('```json\n{"title":"主题"}\n```')['title'], '主题')
 

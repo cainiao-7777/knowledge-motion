@@ -4,6 +4,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# 只下载10条计算机网络验证题，作为低成本的基础知识试验样本。
 params={'dataset':'ceval/ceval-exam','config':'computer_network','split':'val','offset':0,'length':10}
 url='https://datasets-server.huggingface.co/rows?'+urllib.parse.urlencode(params)
 request=urllib.request.Request(url,headers={'User-Agent':'KnowledgeMotion/0.1 educational'})

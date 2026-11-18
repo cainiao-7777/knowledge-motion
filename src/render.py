@@ -37,6 +37,7 @@ def _tint(color, amount=0.16):
     return tuple(round(channel*(1-amount)+255*amount) for channel in color)
 
 def draw_background_motif(draw, motif, accent, light):
+    # 按模型选出的主题意象绘制低对比度背景纹理，不让纹理压过正文。
     line=_tint(accent,0.70 if light else 0.24)
     if motif=='grid':
         for x in range(48,WIDTH,64): draw.line((x,90,x,635),fill=line,width=1)
@@ -60,6 +61,7 @@ def draw_background_motif(draw, motif, accent, light):
             draw.line((offset,120,offset-120,400),fill=line,width=1)
 
 def draw_theme_metaphor(draw, motif, description, accent, foreground, progress, beat_pulse, layout):
+    # 把自由的主题隐喻映射为当前绘图器支持的程序图形，并随叙事逐步变化。
     if motif=='fracture':
         box=(900,200,1180,500)
         draw.ellipse(box,outline=accent,width=2+round(2*beat_pulse))
@@ -103,6 +105,7 @@ def draw_theme_metaphor(draw, motif, description, accent, foreground, progress, 
         for y in (285,325,365,405): draw.line((958,y,1128,y),fill=foreground,width=2)
 
 def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.0):
+    # 生成单帧：根据主题艺术指导布局，再画正文、说明和本幕图形。
     palette=choose_palette(palette)
     layout=palette.get('layout','editorial')
     light=contrast(palette['background'],'#181927') > contrast(palette['background'],'#eff0f6')
@@ -130,6 +133,7 @@ def draw_scene(title, scene, progress, index, count, palette=None, beat_pulse=0.
     y=190 if layout=='center' else 285 if layout=='asymmetric' else 210
     available_height=520-y
     heading=None;lines=[];line_height=0
+    # 从大字号开始尝试；如果正文高度放不下，再逐级缩小字号。
     for size in (56,50,44,38,34,30,26,22):
         candidate=font(size)
         candidate_lines=wrapped(d,scene['text'],candidate,text_width)
@@ -218,6 +222,7 @@ def apply_rhythm_motion(image, intensity, beat_index):
     return scaled.crop((left,top,left+width,top+height))
 
 def render_video(storyboard, destination, music=None, beats=None):
+    # 将故事板逐帧交给 FFmpeg；画面和音频合成成功后才替换成片。
     validate_storyboard(storyboard)
     if not shutil.which('ffmpeg'):
         raise RuntimeError('未找到 FFmpeg，请先安装并配置 PATH')
@@ -236,12 +241,14 @@ def render_video(storyboard, destination, music=None, beats=None):
                 count=round(scene['duration_seconds']*FPS)
                 for frame in range(count):
                     global_time=elapsed+frame/FPS
+                    # 只取当前附近的拍点，用脉冲强度驱动短暂推近和抖动。
                     active=[(beat_index,beat) for beat_index,beat in enumerate(beats) if abs(global_time-beat)<0.18]
                     beat_index,nearest=min(active,key=lambda item:abs(global_time-item[1])) if active else (-1,None)
                     beat_pulse=math.exp(-((global_time-nearest)/0.075)**2) if nearest is not None else 0.0
                     art_direction=storyboard.get('art_direction',storyboard.get('palette'))
                     image=draw_scene(storyboard['title'],scene,frame/max(1,count-1),index,len(storyboard['scenes']),art_direction,beat_pulse)
                     image=apply_rhythm_motion(image,beat_pulse,beat_index)
+                    # 新镜头头半秒与上一幕末帧交叠，形成交叉淡化。
                     if previous is not None and frame < FPS//2:
                         image=Image.blend(previous,image,(frame+1)/(FPS//2))
                     proc.stdin.write(image.tobytes())
@@ -264,6 +271,7 @@ def render_video(storyboard, destination, music=None, beats=None):
             create_effects_track(effects,duration,positions)
             fade_start=max(0.0,duration-1.0)
             fade_duration=min(1.0,duration)
+            # 配乐降低电平并在结束前淡出，再叠加单独生成的转场音效。
             audio_filter=f'[1:a]volume=0.48,afade=t=out:st={fade_start}:d={fade_duration},apad[music];[music][2:a]amix=inputs=2:duration=shortest:normalize=0[a]'
             cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(silent),'-i',str(music),'-i',str(effects),'-filter_complex',audio_filter,'-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-shortest',str(completed)]
             result=subprocess.run(cmd,capture_output=True,text=True,encoding='utf-8',errors='replace')

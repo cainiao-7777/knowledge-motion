@@ -2,6 +2,7 @@ import unittest
 from src.style import choose_palette
 
 class PaletteTests(unittest.TestCase):
+    # 确认配色可读，非法颜色会安全回退到默认方案。
     def test_accepts_high_contrast_colors(self):
         result=choose_palette({'background':'#121426','accent':'#c9aaff'})
         self.assertEqual(result['background'],'#121426')

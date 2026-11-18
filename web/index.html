@@ -6,10 +6,13 @@
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body><main>
+<!-- 顶部品牌和固定输出信息。 -->
 <header><span>KNOWLEDGE MOTION / 知识动画工作台</span><span>本地作品 · 中文 · 16:9</span></header>
 <div class="eyebrow">从一个问题开始</div><h1>把知识，变成画面。</h1>
 <p class="intro">输入一个知识主题，系统检索资料、生成分镜并制作无旁白视频。当前是开发中的基础版本，内容和视觉效果仍需人工检查。</p>
+<!-- 创作表单收集主题；右侧只解释生成流程。 -->
 <div class="grid"><section class="card"><h2>创建视频</h2><form id="form"><label for="topic">你想讲解什么？</label><textarea id="topic" maxlength="150" required placeholder="例如：用生活中的例子解释囚徒困境"></textarea><p class="hint">将使用本机配置的百炼 API 和指定音乐。请先确认免费额度及用完即停。</p><button id="submit">开始生成</button><p class="message" id="message" role="status" aria-live="polite"></p></form></section>
 <aside class="card"><h2>生成流程</h2><p>01 · 搜集公开资料</p><p>02 · 整理讲解与分镜</p><p>03 · 制作画面并合成音乐</p><p class="hint">完成后请核对事实和资料来源。生成时间取决于模型和电脑性能。</p></aside></div>
+<!-- 搜索、分页和作品卡片均由 web/app.js 根据本机项目列表动态生成。 -->
 <section style="margin-top:50px"><h2>本地作品</h2><p class="muted">作品和来源清单保存在本机。每 5 秒更新一次状态。</p><label for="projectSearch">搜索作品</label><input id="projectSearch" type="search" maxlength="100" placeholder="输入主题、标题或来源关键词"><div class="collection-controls"><span id="projectCount" class="muted" aria-live="polite"></span><div><button id="previousPage" type="button">上一页</button><span id="pageInfo" class="page-info"></span><button id="nextPage" type="button">下一页</button></div></div><div id="projects" aria-live="polite"></div></section>
 </main><script src="/assets/app.js"></script></body></html>

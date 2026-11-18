@@ -4,6 +4,7 @@ from pathlib import Path
 from src.classifier import classify_scenes
 
 def run():
+    # 用人工编写并标注的分镜小样，记录预测和标签是否一致。
     cases=json.loads(Path('evaluation/classification_cases.json').read_text(encoding='utf-8-sig'))
     labels=classify_scenes(cases)
     results=[{'text':c['text'],'expected':c['label'],'predicted':prediction} for c,prediction in zip(cases,labels)]

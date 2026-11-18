@@ -5,6 +5,7 @@ from src.pipeline import create_video_project
 from src.projects import load_project
 
 class PipelineTests(unittest.TestCase):
+    # 检查流程失败时记状态、成功时保存来源和故事板。
     def test_failure_is_saved_and_not_claimed_complete(self):
         with tempfile.TemporaryDirectory() as root:
             with patch('src.pipeline.search_sources',side_effect=RuntimeError('网络不可用')):
@@ -26,6 +27,7 @@ from src.pipeline import revise_video_project
 from src.projects import create_project, save_project, project_dir
 
 class RevisionTests(unittest.TestCase):
+    # 检查修改失败保留旧视频，成功时归档旧版本。
     def test_failed_revision_preserves_previous_video(self):
         with tempfile.TemporaryDirectory() as root:
             project=create_project(root,'主题')

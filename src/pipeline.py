@@ -13,29 +13,35 @@ from src.timeline import align_scenes, normalize_durations
 from src.classifier import classify_scenes, apply_scene_labels
 from src.language import to_simplified
 
+# 可用 KNOWLEDGE_MUSIC 覆盖本地配乐路径；默认指向用户指定的歌曲。
 DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
 
 def create_video_project(root, topic):
+    # 这是新作品的总流程：来源 → 大模型分镜 → 小模型布局 → 节奏 → 视频。
     topic=to_simplified(topic)
     project=create_project(root,topic)
     project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds')
     folder=project_dir(root,project['id'])
     try:
+        # 先保存阶段状态，网页轮询时就能显示当前进度。
         project['status']='researching'; save_project(root,project)
         project['sources']=search_sources(topic)
         lines=['# 资料来源','']
         for s in project['sources']:
             lines.append(f"- {s['title']}：{s['url']}（访问日期：{s.get('accessed','未记录')}）")
         (folder/'sources.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+        # 将实际搜索到的资料及链接单独落盘，再交给大模型组织讲述。
         project['status']='writing'; save_project(root,project)
         project['storyboard']=generate_storyboard(topic,project['sources'])
         project['warnings']=project['storyboard'].get('normalization_warnings',[])
+        # 小模型逐幕分类；画面类型最终还会检查相应数据是否完整。
         project['status']='classifying'; save_project(root,project)
         scenes=project['storyboard']['scenes']
         project['layout_choices']=apply_scene_labels(scenes, classify_scenes(scenes))
         project['status']='rendering'; save_project(root,project)
         if not DEFAULT_MUSIC.is_file():
             raise FileNotFoundError('指定背景音乐不存在，请确认音乐文件路径')
+        # 用本地音乐估计拍点，再尽量让镜头边界靠近这些拍点。
         beats = analyze_music(DEFAULT_MUSIC)
         scenes = project['storyboard']['scenes']
         durations=normalize_durations([s['duration_seconds'] for s in scenes])
@@ -44,6 +50,7 @@ def create_video_project(root, topic):
             scene['duration_seconds'] = boundaries[index+1] - boundaries[index]
         project['beat_count'] = len(beats)
         save_project(root,project)
+        # 先写临时渲染文件；只有视频与音轨合成成功才落到最终文件。
         render_video(project['storyboard'],folder/'video.mp4',DEFAULT_MUSIC,beats=beats)
         project['status']='complete'
     except Exception as exc:
@@ -53,6 +60,7 @@ def create_video_project(root, topic):
     return project
 
 def revise_video_project(root, project_id, instruction):
+    # 修改时保留旧故事板；新视频成功前不替换当前成片。
     instruction=to_simplified(instruction)
     project=load_project(root, project_id)
     folder=project_dir(root,project_id)

@@ -5,6 +5,7 @@ from pathlib import Path
 from src.audio import create_effects_track
 
 class AudioTests(unittest.TestCase):
+    # 确认合成音效采样率、时长和非静音内容。
     def test_effects_track_duration_and_contains_sound(self):
         with tempfile.TemporaryDirectory() as root:
             path=Path(root)/'effects.wav'

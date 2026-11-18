@@ -10,9 +10,11 @@ import urllib.request
 class ClassificationError(RuntimeError): pass
 
 LABELS={'concept','comparison','summary','flow'}
+# 默认小模型来自本机 Ollama；SMALL_MODEL 环境变量可切换本地模型。
 DEFAULT_MODEL='modelscope.cn/unsloth/Qwen3.5-0.8B-GGUF:latest'
 
 def parse_labels(text, count):
+    # 严格确认本地小模型返回了指定数量且在允许集合内的类别。
     text=re.sub(r'^\s*```(?:json)?\s*|\s*```\s*$','',text,flags=re.I)
     try: labels=json.loads(text)
     except (ValueError,TypeError) as exc: raise ClassificationError('小模型返回格式无效') from exc
@@ -22,6 +24,7 @@ def parse_labels(text, count):
     return labels
 
 def apply_scene_labels(scenes, labels):
+    # 保留大模型明确设计且数据完整的画面；小模型补充布局建议。
     if len(scenes) != len(labels):
         raise ClassificationError('小模型类别数量与分镜不匹配')
     report=[]
@@ -29,6 +32,7 @@ def apply_scene_labels(scenes, labels):
         if label not in LABELS:
             raise ClassificationError('小模型返回的分镜类别无效')
         data=scene.get('data') if isinstance(scene.get('data'),dict) else {}
+        # 大模型若已选布局且数据齐全就保留，否则用小模型建议作补充。
         requested=scene.get('type')
         # Keep a complete layout deliberately selected by the large model;
         # otherwise let the small model suggest a data-supported layout.
@@ -50,6 +54,7 @@ def apply_scene_labels(scenes, labels):
     return report
 
 def classify_scenes(scenes):
+    # 每幕单独请求 Ollama，避免小模型批量输出时重复同一个标签。
     labels=[]
     schema={'type':'object','properties':{'label':{'type':'string','enum':sorted(LABELS)}},'required':['label']}
     for scene in scenes:

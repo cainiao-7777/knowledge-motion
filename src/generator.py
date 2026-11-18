@@ -10,6 +10,7 @@ class GenerationError(RuntimeError):
     pass
 
 def read_api_key():
+    # 优先读当前进程环境变量；Windows 用户变量在新进程启动时补读。
     key = os.environ.get('DASHSCOPE_API_KEY', '')
     if key or os.name != 'nt':
         return key
@@ -22,6 +23,7 @@ def read_api_key():
         return ''
 
 def extract_json(text):
+    # 模型有时会在 JSON 前后加说明；先直接解析，失败再从首个对象开始解析。
     text = re.sub(r'^\s*```(?:json)?\s*|\s*```\s*$', '', text.strip(), flags=re.I)
     try:
         value = json.loads(text)
@@ -39,11 +41,13 @@ def extract_json(text):
 
 def complete_visual_descriptions(storyboard):
     """Supply a safe visual brief when the model omits a non-factual field."""
+    # 只补画面构图说明，不代替模型捏造知识内容或数字。
     warnings=[]
     art=storyboard.get('art_direction',{})
     metaphor=art.get('visual_metaphor','') if isinstance(art,dict) else ''
     style=art.get('style','') if isinstance(art,dict) else ''
     composition=art.get('composition','') if isinstance(art,dict) else ''
+    # JSON schema 仍可能漏掉非事实字段；只用已有文本/风格补画面说明。
     for index,scene in enumerate(storyboard.get('scenes',[]),1):
         description=scene.get('visual_description')
         if isinstance(description,str) and description.strip():
@@ -57,6 +61,8 @@ def complete_visual_descriptions(storyboard):
     return storyboard
 
 def generate_storyboard(topic, sources, api_key=None, model=None, previous=None, revision=None):
+    # 这是创作 prompt 的唯一入口：要求主题化风格和讲述口吻，但不固定幕数或叙事模板。
+    # 把主题和检索资料交给百炼；创意结构由模型按主题决定，JSON 只约束字段。
     key = read_api_key() if api_key is None else api_key
     if not key:
         raise GenerationError('请先设置 DASHSCOPE_API_KEY 环境变量')
@@ -83,6 +89,8 @@ def generate_storyboard(topic, sources, api_key=None, model=None, previous=None,
               '\n用户主题：'+topic+'\n检索资料与来源：\n'+source_text)
     if previous is not None and revision:
         prompt += '\n这是现有分镜，请依据修改意见修改，保留无关内容：\n' + json.dumps(simplify_tree(previous), ensure_ascii=False) + '\n修改意见：' + to_simplified(revision)
+    # JSON Schema 保证每幕字段齐全，但不指定幕数、顺序、颜色或故事模板。
+    # JSON schema 只固定程序接口字段，不预设每幕内容、颜色或布局。
     response_schema={
         'type':'json_schema',
         'json_schema':{

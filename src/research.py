@@ -18,12 +18,14 @@ PINYIN_NAME_CHARS={
     'jia':['佳','嘉','家','加'],
     'xuan':['萱','轩','璇','宣']
 }
+# 少量高频同音字纠错候选；只是搜索扩展，不代表已确认人物身份。
 NAME_HOMOPHONES={'宛':['婉'],'婉':['宛'],'佳':['嘉'],'嘉':['佳'],'轩':['萱'],'萱':['轩']}
 
 class ResearchError(RuntimeError):
     pass
 
 def extract_search_query(topic):
+    # 先从用户的一句话中去掉“讲一下/为什么”等指令，留下可搜索主题。
     """Remove presentation instructions and prefer an explicitly quoted title."""
     topic=to_simplified(topic)
     text=topic.strip()
@@ -38,6 +40,7 @@ def extract_search_query(topic):
     return (text or topic.strip()), bool(re.search(r'(书|小说|著作|作者)',topic))
 
 def fetch_json(url, timeout=18, attempts=3):
+    # 短暂网络错误时有限重试；耗尽后让上层显示清楚的搜索失败状态。
     last_error=None
     for attempt in range(attempts):
         request=urllib.request.Request(url,headers={'User-Agent':'KnowledgeMotion/0.1 (educational student project)'})
@@ -51,6 +54,7 @@ def fetch_json(url, timeout=18, attempts=3):
     raise last_error
 
 def normalize_results(results):
+    # 丢弃非 HTTPS 或缺少标题的项目，再统一日期和简体显示文字。
     output=[]
     for item in results:
         url=item.get('url','')
@@ -61,9 +65,11 @@ def normalize_results(results):
     return output
 
 def rank_sources(sources, query, is_book, candidates=(), prefer_best=False):
+    # 标题精确匹配高于摘要提及；模糊人名若有精确候选就优先选它。
     keys=[re.sub(r'\s+','',x).casefold() for x in (query,*candidates) if x]
     unrelated=('电视剧','電視劇','韓國電視劇','漫画','漫畫','专辑','專輯')
     def score(source):
+        # 标题比摘要权重大；书名额外偏向书目页并降权影视/消歧义条目。
         title=re.sub(r'\s+','',source['title']).casefold()
         snippet=source.get('snippet','').casefold()
         title_points=max((12 if title==key else 0)+(8 if key in title else 0) for key in keys) if keys else 0
@@ -86,7 +92,9 @@ def rank_sources(sources, query, is_book, candidates=(), prefer_best=False):
     return ranked
 
 def spelling_suggestions(query):
+    # Google 自动补全只扩展搜索词，不会作为引用来源展示给观众。
     """Use public search autocomplete only to expand queries, never as a citation."""
+    # 只取候选搜索词；自动补全本身不会被列为资料来源。
     params=urllib.parse.urlencode({'client':'firefox','hl':'zh-CN','q':query})
     try:
         result=fetch_json('https://suggestqueries.google.com/complete/search?'+params,timeout=8,attempts=1)
@@ -106,6 +114,7 @@ class _DuckDuckGoParser(HTMLParser):
         self.results=[];self.current=None;self.capture=None
 
     def handle_starttag(self,tag,attrs):
+        # 根据搜索页的结果容器、标题链接和摘要 class 收集网页字段。
         attrs=dict(attrs);classes=attrs.get('class','').split()
         if tag=='div' and 'result' in classes:
             self.current={'title':'','url':'','snippet':''};self.results.append(self.current)
@@ -126,7 +135,9 @@ class _DuckDuckGoParser(HTMLParser):
             self.current[self.capture]+=data
 
 def browser_search(query):
+    # 读取 DuckDuckGo 网页标题、真实链接和摘要，补充百科之外的网页资料。
     """Parse public DuckDuckGo web results; autocomplete suggestions are not citations."""
+    # 普通网页搜索补充百科；最终只保留有效 HTTPS 页面链接。
     params=urllib.parse.urlencode({'q':query})
     url='https://html.duckduckgo.com/html/?'+params
     request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'})
@@ -150,6 +161,7 @@ def browser_search(query):
     return results
 
 def expand_name_candidates(query, suggestions):
+    # 处理汉字后接拼音的姓名，并生成少量常见同音字候选。
     candidates=[]
     for base in suggestions:
         candidates.append(base)
@@ -172,6 +184,7 @@ def expand_name_candidates(query, suggestions):
     return result[:8]
 
 def search_sources(topic):
+    # 汇合模糊候选、百科、普通网页和书目，再筛选和去重。
     if not topic or not topic.strip():
         raise ResearchError('请输入知识主题')
     core,is_book=extract_search_query(topic)
@@ -184,6 +197,7 @@ def search_sources(topic):
     languages=['zh']
     if not re.search(r'[\u3400-\u9fff]',core):
         languages.append('en')
+    # 先对主题和纠正候选搜百科，再补网页搜索和书目目录。
     for candidate in queries:
         for language in languages:
             query=urllib.parse.urlencode({'action':'query','list':'search','srsearch':candidate,'srlimit':5,'format':'json','utf8':1})

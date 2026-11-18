@@ -3,6 +3,7 @@ from src.storyboard import validate_storyboard, StoryboardError
 from src.timeline import align_scenes
 
 class StoryboardTests(unittest.TestCase):
+    # 验证错误故事板被拒绝、有效中文保留，以及镜头时间线总长正确。
     def test_rejects_blank_scenes_and_missing_matrix_values(self):
         with self.assertRaises(StoryboardError):
             validate_storyboard({'title':'例子','scenes':[]})

@@ -1,5 +1,6 @@
 """Place scene boundaries on nearby beat markers without changing total length."""
 def normalize_durations(durations, target_seconds=60, minimum=45, maximum=75):
+    # 总长偏离目标区间时按比例缩放，尽量保留模型安排的快慢关系。
     total=sum(durations)
     if total <= 0: raise ValueError('分镜总时长必须大于0')
     if minimum <= total <= maximum: return list(durations)
@@ -16,9 +17,11 @@ def normalize_durations(durations, target_seconds=60, minimum=45, maximum=75):
     return adjusted
 
 def align_scenes(durations, beats):
+    # 在不让镜头短于2秒的条件下，把切换点吸附到邻近估计拍点。
     total = sum(durations)
     available = sorted(set(float(b) for b in beats if 0 < b < total))
     boundaries, target = [0], 0
+    # 每个边界只吸附到附近拍点，并给后续镜头保留至少2秒。
     for index, duration in enumerate(durations[:-1]):
         target += duration
         lower = boundaries[-1] + 2

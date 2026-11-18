@@ -4,6 +4,7 @@ from pathlib import Path
 from src.projects import create_project, load_project, save_project, ProjectError
 
 class ProjectTests(unittest.TestCase):
+    # 确认作品元数据能保存重读，并拒绝路径穿越编号。
     def test_save_and_reload_project(self):
         with tempfile.TemporaryDirectory() as root:
             project=create_project(root, '囚徒困境')
