@@ -60,6 +60,38 @@ def complete_visual_descriptions(storyboard):
         storyboard['normalization_warnings']=warnings
     return storyboard
 
+def plan_search_queries(topic, api_key=None, model=None):
+    """Turn a one-line request into a concise topic and web-search query list."""
+    key=read_api_key() if api_key is None else api_key
+    if not key:
+        raise GenerationError('请先设置 DASHSCOPE_API_KEY 环境变量')
+    model=model or os.getenv('BAILIAN_MODEL','qwen4-max')
+    prompt=('把用户的一句话需求拆成搜索用的核心主题和2到4个简短关键词。'
+            '删除风格、时长和制作要求，保留人名、书名、作品名、领域术语；必要时加一个消歧词。'
+            '不要回答主题，不要杜撰人物或事实，所有文字使用简体中文。只返回包含 main_topic 和 queries 的 JSON。'
+            '\n用户输入：'+to_simplified(topic))
+    schema={'type':'json_schema','json_schema':{'name':'search_query_plan','strict':True,'schema':{
+        'type':'object','additionalProperties':False,
+        'properties':{'main_topic':{'type':'string'},'queries':{'type':'array','items':{'type':'string'},'minItems':2,'maxItems':4}},
+        'required':['main_topic','queries']}}}
+    endpoint=os.getenv('BAILIAN_BASE_URL','https://dashscope.aliyuncs.com/compatible-mode/v1').rstrip('/')+'/chat/completions'
+    body=json.dumps({'model':model,'messages':[{'role':'user','content':prompt}],'max_tokens':600,'temperature':0.2,'enable_thinking':False,'response_format':schema},ensure_ascii=False).encode('utf-8')
+    request=urllib.request.Request(endpoint,data=body,headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
+    try:
+        with urllib.request.urlopen(request,timeout=60) as response:
+            result=json.load(response)
+        plan=simplify_tree(extract_json(result['choices'][0]['message']['content']))
+        queries=[]
+        for query in plan.get('queries',[]):
+            if isinstance(query,str) and query.strip() and query.strip() not in queries:
+                queries.append(query.strip())
+        main_topic=plan.get('main_topic')
+        if not isinstance(main_topic,str) or not main_topic.strip() or len(queries)<2:
+            raise GenerationError('搜索关键词规划结果不完整')
+        return {'main_topic':main_topic.strip(),'queries':queries[:4],'method':'qwen4-max'}
+    except (OSError,KeyError,IndexError,TypeError,ValueError) as exc:
+        raise GenerationError('大模型搜索词规划失败') from exc
+
 def generate_storyboard(topic, sources, api_key=None, model=None, previous=None, revision=None):
     # 这是创作 prompt 的唯一入口：要求主题化风格和讲述口吻，但不固定幕数或叙事模板。
     # 把主题和检索资料交给百炼；创意结构由模型按主题决定，JSON 只约束字段。

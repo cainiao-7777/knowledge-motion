@@ -88,7 +88,7 @@ function makeProjectCard(project) {
   card.append(title);
 
   const labels = {
-    new: '准备中', researching: '正在查找资料', writing: '正在生成分镜',
+    new: '准备中', planning_search: '正在提炼搜索词', researching: '正在查找资料', writing: '正在生成分镜',
     classifying: '正在选择动画形式', rendering: '正在渲染视频',
     complete: '已完成', revising: '正在修改', error: '生成失败'
   };
@@ -96,7 +96,7 @@ function makeProjectCard(project) {
   status.className = 'status';
   status.textContent = labels[project.status] || project.status;
   status.dataset.baseText = status.textContent;
-  status.dataset.active = ['new','researching','writing','classifying','rendering','revising'].includes(project.status) ? 'true' : 'false';
+  status.dataset.active = ['new','planning_search','researching','writing','classifying','rendering','revising'].includes(project.status) ? 'true' : 'false';
   status.dataset.startedAt = project.operation_started_at || project.created || '';
   card.append(status);
 

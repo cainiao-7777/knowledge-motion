@@ -5,8 +5,8 @@ import shutil
 import uuid
 from datetime import datetime
 from src.projects import create_project, save_project, project_dir, load_project
-from src.research import search_sources
-from src.generator import generate_storyboard
+from src.research import search_sources, extract_search_query
+from src.generator import generate_storyboard, plan_search_queries
 from src.render import render_video
 from src.beats import analyze_music
 from src.timeline import align_scenes, normalize_durations
@@ -23,9 +23,18 @@ def create_video_project(root, topic):
     project['operation_started_at']=datetime.now().astimezone().isoformat(timespec='seconds')
     folder=project_dir(root,project['id'])
     try:
-        # 先保存阶段状态，网页轮询时就能显示当前进度。
+        # 先让大模型从一句话中提炼主题和网页检索词。
+        project['status']='planning_search'; save_project(root,project)
+        try:
+            project['search_plan']=plan_search_queries(topic)
+        except Exception as exc:
+            # 规划超时或格式错误时，用本地规则提词并记录回退原因。
+            core,_=extract_search_query(topic)
+            project['search_plan']={'main_topic':core,'queries':[core],'method':'fallback','reason':str(exc)}
+        # 将规划词交给网页搜索，再保存实际来源。
         project['status']='researching'; save_project(root,project)
-        project['sources']=search_sources(topic)
+        plan=project['search_plan']
+        project['sources']=search_sources(topic,plan.get('queries'),plan.get('main_topic'))
         lines=['# 资料来源','']
         for s in project['sources']:
             lines.append(f"- {s['title']}：{s['url']}（访问日期：{s.get('accessed','未记录')}）")

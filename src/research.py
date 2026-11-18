@@ -183,7 +183,7 @@ def expand_name_candidates(query, suggestions):
             result.append(candidate)
     return result[:8]
 
-def search_sources(topic):
+def search_sources(topic, planned_queries=None, planned_topic=None):
     # 汇合模糊候选、百科、普通网页和书目，再筛选和去重。
     if not topic or not topic.strip():
         raise ResearchError('请输入知识主题')
@@ -192,7 +192,12 @@ def search_sources(topic):
     suggestions=spelling_suggestions(core)
     candidates=expand_name_candidates(core,suggestions)
     fuzzy_name=bool(re.fullmatch(r'[\u3400-\u9fff]+[A-Za-z]+',core))
-    queries=[core]+candidates[:5]
+    # 模型规划词排前，保留原词和拼写候选以防规划遗漏实体。
+    queries=[]
+    for candidate in [*(planned_queries or []),planned_topic,core,*candidates[:5]]:
+        if isinstance(candidate,str) and candidate.strip() and candidate.strip() not in queries:
+            queries.append(candidate.strip())
+    queries=queries[:6]
     wiki_failures=0
     languages=['zh']
     if not re.search(r'[\u3400-\u9fff]',core):
@@ -212,7 +217,8 @@ def search_sources(topic):
                 wiki_failures+=1
 
     # Add ordinary web pages so the retriever is not limited to encyclopedias.
-    items.extend(browser_search(core))
+    for candidate in queries[:3]:
+        items.extend(browser_search(candidate))
 
     # Long prompts and book titles are often poorly covered by an encyclopedia
     # search, so add catalog metadata instead of treating a weak search as empty.
@@ -240,7 +246,7 @@ def search_sources(topic):
         if identity not in seen:
             unique.append(source);seen.add(identity)
     if unique:
-        ranked=rank_sources(unique,core,is_book,candidates,prefer_best=fuzzy_name)
+        ranked=rank_sources(unique,core,is_book,[*queries,*candidates],prefer_best=fuzzy_name)
         if ranked:
             if not fuzzy_name:
                 reference=[s for s in ranked if 'wikipedia.org' in urllib.parse.urlparse(s['url']).netloc or 'openlibrary.org' in urllib.parse.urlparse(s['url']).netloc]

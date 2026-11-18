@@ -54,11 +54,12 @@ web/index.html 表单
 `create_video_project(root, topic)` 是总流程：
 
 1. 把主题转成简体，创建作品编号和文件夹。
-2. 保存 `researching` 状态，调用 `search_sources()`，把实际来源写到 `sources.md`。
-3. 保存 `writing` 状态，调用百炼生成分镜。
-4. 保存 `classifying` 状态，本地小模型逐幕分类，`apply_scene_labels()` 再检查图形数据是否完整。
-5. 保存 `rendering` 状态，分析配乐、调整总时长并把镜头边界靠近估计拍点。
-6. 调用 `render_video()` 导出 MP4，完成后保存 `complete`；异常会保存 `error` 和错误信息。
+2. 保存 `planning_search` 状态，调用 `plan_search_queries()` 让 qwen4-max 从一句话提炼核心主题和2–4个搜索词，并把规划存入项目记录。
+3. 保存 `researching` 状态，把规划词传给 `search_sources()` 搜网页并合并来源，再写入 `sources.md`。
+4. 保存 `writing` 状态，调用百炼生成分镜。
+5. 保存 `classifying` 状态，本地小模型逐幕分类，`apply_scene_labels()` 再检查图形数据是否完整。
+6. 保存 `rendering` 状态，分析配乐、调整总时长并把镜头边界靠近估计拍点。
+7. 调用 `render_video()` 导出 MP4，完成后保存 `complete`；异常会保存 `error` 和错误信息。
 
 `revise_video_project()` 读取旧分镜，把用户修改意见交给大模型，重新分类并渲染到候选文件。候选成功后才备份旧视频并替换，因此失败时原视频保留。
 
@@ -74,7 +75,7 @@ web/index.html 表单
 ## 6. 大模型和故事板：src/generator.py、src/storyboard.py
 
 - `read_api_key()` 从 `DASHSCOPE_API_KEY` 读取密钥，不把密钥写进代码。
-- `generate_storyboard()` 把主题和检索资料发给 qwen4-max。prompt 不规定固定幕数、镜头顺序、色板或叙事弧线；模型按主题返回 `narrative_arc`、`art_direction` 和场景列表。
+- `plan_search_queries()` 先把用户一句话拆成核心主题和2–4个查询词。调用失败会记录回退并用本地规则继续。`generate_storyboard()` 再把主题和检索资料发给 qwen4-max。prompt 不规定固定幕数、镜头顺序、色板或叙事弧线；模型按主题返回 `narrative_arc`、`art_direction` 和场景列表。
 - prompt 要求讲述者直接解释知识，不写“资料显示/据网站”等检索过程用语；来源链接放在单独清单。
 - `response_schema` 只约束 JSON 必需字段，不规定创作内容；`enable_thinking=False` 避免思考内容占满回答预算。
 - `extract_json()` 能从夹带说明或代码围栏的回答中找到 JSON 对象。
