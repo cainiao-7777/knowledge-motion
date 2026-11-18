@@ -11,6 +11,8 @@ let lastSnapshot = '';
 let allProjects = [];
 let currentPage = 1;
 const pageSize = 6;
+const pendingDeletes = new Set();
+const pendingPauses = new Set();
 
 async function postJson(url, body) {
   // 新建和修改都发送 JSON，并把服务端返回的状态消息交回页面。
@@ -54,12 +56,16 @@ function makeRevisionForm(projectId) {
   form.append(label);
 
   const button = document.createElement('button');
+  button.type = 'submit';
+  button.className = 'revision-submit';
   button.textContent = '提交修改';
-  form.append(button);
+  const actions = document.createElement('div');
+  actions.className = 'project-action-row';
   const feedback = document.createElement('p');
-  feedback.className = 'message';
+  feedback.className = 'message project-action-feedback';
   feedback.setAttribute('role', 'status');
-  form.append(feedback);
+  actions.append(feedback,button);
+  form.append(actions);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -94,15 +100,17 @@ function makeProjectCard(project) {
   };
   const status = document.createElement('span');
   status.className = 'status';
-  status.textContent = labels[project.status] || project.status;
+  status.textContent = pendingDeletes.has(project.id) ? '正在停止并删除…'
+    : pendingPauses.has(project.id) ? '正在取消修改并恢复上一版…'
+    : labels[project.status] || project.status;
   status.dataset.baseText = status.textContent;
   status.dataset.active = ['new','planning_search','researching','writing','classifying','rendering','revising'].includes(project.status) ? 'true' : 'false';
   status.dataset.startedAt = project.operation_started_at || project.created || '';
   card.append(status);
 
-  if (project.error || project.revision_error || project.revision_notice) {
+  if (project.error || project.revision_error || project.revision_notice || project.deletion_error) {
     const error = document.createElement('p');
-    error.textContent = project.revision_notice || (project.revision_error
+    error.textContent = project.deletion_error || project.revision_notice || (project.revision_error
       ? '修改失败，原视频已保留：' + project.revision_error : project.error);
     card.append(error);
   }
@@ -112,7 +120,7 @@ function makeProjectCard(project) {
     warning.textContent = project.warnings.join(' ');
     card.append(warning);
   }
-  if (project.status === 'complete') {
+  if (project.status === 'complete' || project.status === 'revising') {
     const video = document.createElement('video');
     video.controls = true;
     video.preload = 'metadata';
@@ -142,32 +150,89 @@ function makeProjectCard(project) {
     const sources = document.createElement('a');
     sources.href = '/files/' + project.id + '/sources.md';
     sources.textContent = '查看来源清单';
-    card.append(sources, makeRevisionForm(project.id));
+    card.append(sources);
+    if (project.status === 'complete') {
+      const form = makeRevisionForm(project.id);
+      form.querySelector('.project-action-row').append(makeDeleteButton(project,status,false));
+      card.append(form);
+    } else {
+      const actions = document.createElement('div');
+      actions.className = 'project-action-row active-project-actions';
+      actions.append(makePauseButton(project,status));
+      card.append(actions);
+    }
   }
-  if (!['new','planning_search','researching','writing','classifying','rendering','revising'].includes(project.status)) {
-    // 进行中的作品不显示删除按钮，避免删掉正在写入的目录。
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'delete-project';
-    remove.textContent = '删除作品';
-    remove.addEventListener('click', async () => {
-      const message = '确定删除“' + project.topic + '”？这会永久删除该作品的视频、资料清单和修改历史，并释放本地磁盘空间。';
-      if (!window.confirm(message)) return;
-      remove.disabled = true;
-      try {
-        const response = await fetch('/api/projects/' + encodeURIComponent(project.id), { method: 'DELETE' });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || '删除失败');
-        lastSnapshot = '';
-        await refresh();
-      } catch (error) {
-        remove.disabled = false;
-        window.alert(error.message || '删除失败，请重试。');
-      }
-    });
-    card.append(remove);
+  if (['new','planning_search','researching','writing','classifying','rendering'].includes(project.status)) {
+    const actions = document.createElement('div');
+    actions.className = 'project-action-row active-project-actions';
+    actions.append(makeDeleteButton(project,status,true));
+    card.append(actions);
+  } else if (!['complete','revising'].includes(project.status)) {
+    const actions = document.createElement('div');
+    actions.className = 'project-action-row active-project-actions';
+    actions.append(makeDeleteButton(project,status,false));
+    card.append(actions);
   }
   return card;
+}
+
+function makeDeleteButton(project,status,isGenerating) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'delete-project';
+  button.textContent = isGenerating ? '删除任务' : '删除作品';
+  button.disabled = pendingDeletes.has(project.id);
+  button.addEventListener('click',async () => {
+    const message = isGenerating
+      ? '确定删除“' + project.topic + '”？系统会停止生成，结束清理后删除该作品及其文件。'
+      : '确定删除“' + project.topic + '”？这会永久删除视频、资料清单和修改历史。';
+    if (!window.confirm(message)) return;
+    pendingDeletes.add(project.id);
+    status.textContent = '正在停止并删除…';
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/projects/' + encodeURIComponent(project.id),{method:'DELETE'});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '删除失败');
+      lastSnapshot = '';
+      await refresh();
+    } catch (error) {
+      pendingDeletes.delete(project.id);
+      button.disabled = false;
+      window.alert(error.message || '删除失败，请重试。');
+      lastSnapshot = '';
+      await refresh();
+    }
+  });
+  return button;
+}
+
+function makePauseButton(project,status) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pause-revision';
+  button.textContent = '暂停修改';
+  button.disabled = pendingPauses.has(project.id);
+  button.addEventListener('click',async () => {
+    if (!window.confirm('取消当前修改并恢复修改前的视频和分镜？')) return;
+    pendingPauses.add(project.id);
+    status.textContent = '正在取消修改并恢复上一版…';
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/pause/' + encodeURIComponent(project.id),{method:'POST'});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '无法暂停修改');
+      lastSnapshot = '';
+      await refresh();
+    } catch (error) {
+      pendingPauses.delete(project.id);
+      button.disabled = false;
+      window.alert(error.message || '无法暂停修改，请重试。');
+      lastSnapshot = '';
+      await refresh();
+    }
+  });
+  return button;
 }
 
 function searchableProjectText(project) {
@@ -212,6 +277,9 @@ async function refresh() {
   try {
     const response = await fetch('/api/projects');
     const items = await response.json();
+    const projectsById = new Map(items.map(project => [project.id,project]));
+    for (const id of pendingDeletes) if (!projectsById.has(id) || projectsById.get(id)?.deletion_error) pendingDeletes.delete(id);
+    for (const id of pendingPauses) if (projectsById.get(id)?.status !== 'revising') pendingPauses.delete(id);
     const snapshot = JSON.stringify(items);
     if (snapshot === lastSnapshot) {
       updateTimeoutLabels();

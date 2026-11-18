@@ -32,7 +32,7 @@ web/index.html 表单
 - `makeRevisionForm(id)`：收集自然语言修改意见并提交。
 - `makeProjectCard(project)`：建立作品卡片，用 `textContent` 显示模型文字，避免把内容误当 HTML 执行。
 - 播放器滑杆：`input` 事件把滑杆位置换算为 `video.currentTime`；`timeupdate` 把播放位置同步回滑杆。服务器必须支持 HTTP Range，浏览器才能读取 MP4 的任意片段进行跳播。
-- 删除按钮：先弹出确认框，说明会移除视频、来源和历史版本；用户确认后才发 DELETE 请求。
+- 操作按钮：生成中可发起取消并删除；修改中可暂停本次修改并保留旧版；已完成作品的提交修改和删除按钮并排显示。
 - `searchableProjectText()`：组合主题、分镜标题/文字/说明和资料来源，供搜索匹配。
 - `renderProjects()`：按关键词筛选，再按每页6条分页，更新结果数和上一页/下一页按钮。
 - `refresh()`：每5秒读取项目状态；数据没变化时只更新超时提示，不重建正在播放的 video 元素。
@@ -41,13 +41,14 @@ web/index.html 表单
 ## 3. 本地 HTTP 服务：app.py
 
 - `ROOT`、`OUTPUT`、`PORT`：定位项目、作品目录和本机 8765 端口。
-- `generation_lock`：避免同时启动多个新视频生成；`active_revisions` 和 `revision_lock` 避免同一作品重复修改或在运行时删除。
-- `generation_worker()`、`revise_worker()`：在后台运行耗时流程，结束后释放锁和活动标记。
+- `generation_lock`：避免同时启动多个新视频生成；`active_generations`、`active_revisions` 和 `revision_lock` 跟踪后台操作并避免删除竞态。
+- `generation_worker()`、`revise_worker()`：在后台运行耗时流程；`run_with_timeout()` 为每项任务创建5分钟计时器并传递 `OperationControl`。生成作品建立编号后登记控制对象，删除接口才能通知对应线程。
 - `respond()`、`reply_json()`：统一返回 HTTP 状态码、内容类型和 UTF-8 数据；`Cache-Control: no-store` 避免浏览器继续用旧脚本。
 - `respond_video(file)`：普通请求返回完整 MP4；带 `Range: bytes=...` 时返回 206 分段内容和 `Content-Range`，让播放器跳到视频中间。
 - `do_GET()`：按路径白名单提供网页、静态文件、作品信息、MP4 和来源清单；项目编号先做 UUID 校验。
 - `do_POST()`：检查 Host/Origin、请求体大小和主题/修改意见长度，再启动后台任务。
-- `do_DELETE()`：只允许同源请求；检查作品是否正在生成或修改，然后删除一个 UUID 对应的本地作品目录。
+- `do_DELETE()`：只允许同源请求；生成中先发取消信号，线程收尾后再删目录；修改中提示使用暂停接口。
+- `POST /api/pause/<UUID>`：只接受正在修改的作品；与最终提交共用操作锁，暂停先发生就保留旧版，提交先完成就返回“修改已完成”。
 
 ## 4. 生成编排：src/pipeline.py
 
@@ -122,9 +123,17 @@ web/index.html 表单
 
 ### 删除
 
-作品卡片只对已完成或失败的项目显示“删除作品”。点击后 `window.confirm()` 明确列出将删除视频、来源和历史；用户取消时不发请求。确认后发送 `DELETE /api/projects/<UUID>`。
+作品卡片底部右侧统一放置动作按钮。已完成作品的“提交修改”和“删除作品”共享一行且高度相同；生成中显示“删除任务”；修改中显示“暂停修改”。删除和暂停都先经 `window.confirm()` 确认。
 
-`app.py` 的 `do_DELETE()` 再验证 Host、Origin 和 UUID 对应项目状态；正在生成/修改的项目返回409，避免删除活跃任务。`src/projects.py` 的 `delete_project()` 只删除该 UUID 的项目目录。这个操作会释放本地磁盘空间，但会永久移除该作品的视频、`project.json`、来源清单和历史版本，无法从工作台恢复。
+`app.py` 的 `do_DELETE()` 验证 Host、Origin 和 UUID。生成中不会立即删目录，而是先取消线程，线程结束后删除，避免删除后还写入。修改中发送 `POST /api/pause/<UUID>`，中止候选视频制作并保留旧版。修改最后一步在操作锁内替换视频并保存项目状态；保存完成后暂停请求会被拒绝，页面刷新后显示最终版本。
+
+## 13. 卡片操作与任务控制
+
+`OperationControl` 为每项后台任务共享取消事件、操作锁和是否已提交标记。生成卡片在进行中显示“删除任务”；用户确认后服务端设置取消信号，等待管线结束，再删除作品文件夹。同步模型请求要等当前请求返回或自身超时，之后不再启动下一步。
+
+修改卡片在过程中继续播放当前旧视频。点击“暂停修改”会取消候选视频制作并保留旧视频与旧故事板。最终替换与暂停动作由同一把锁判定：暂停先执行就保留旧版本；替换并保存先执行则视为完成，不再回滚。
+
+已完成作品的表单底部使用 `.project-action-row` 将“提交修改”和“删除作品”排在右侧，按钮最小高度统一为46像素。生成和修改中的单个操作也使用同一套右对齐样式。
 
 ## 12. 等待超时后取消：app.py、src/cancellation.py、src/pipeline.py
 

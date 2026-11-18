@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from src.projects import list_projects, load_project, save_project, project_dir, delete_project, ProjectError
 from src.pipeline import create_video_project, revise_video_project
+from src.cancellation import OperationControl
 
 # 以 app.py 所在目录作为项目根目录，工作目录变化也不会影响资源定位。
 ROOT=Path(__file__).resolve().parent
@@ -16,36 +17,60 @@ OUTPUT=ROOT/'outputs'/'projects'
 # Web 服务只绑定本机地址，8765 是浏览器访问端口。
 PORT=8765
 # 记录正在修改的作品编号，防止同一作品并发重渲染。
-active_revisions=set()
+active_generations={}
+active_revisions={}
 revision_lock=threading.Lock()
 # 新作品渲染很耗时，暂时一次只允许一个新生成任务。
 generation_lock=threading.Lock()
 OPERATION_TIMEOUT_SECONDS=5*60
 
-def run_with_timeout(cancel_event, operation, *args):
+def run_with_timeout(control, operation, *args, **kwargs):
     # The event lets pipeline stages stop cooperatively at the five-minute limit.
-    timer=threading.Timer(OPERATION_TIMEOUT_SECONDS,cancel_event.set)
+    def expire():
+        # Do not cancel a revision whose atomic video-and-metadata commit already won.
+        with control.lock:
+            if not control.committed:
+                control.cancel_event.set()
+    timer=threading.Timer(OPERATION_TIMEOUT_SECONDS,expire)
     timer.daemon=True
     timer.start()
     try:
-        operation(*args,cancel_event=cancel_event)
+        operation(*args,cancel_event=control.cancel_event,operation_control=control,**kwargs)
     finally:
         timer.cancel()
 
-def generation_worker(topic, cancel_event):
+def generation_worker(topic, control):
     # 在线程里运行生成流程，HTTP 请求可先返回，不必等视频渲染结束。
+    def register_project(project):
+        with revision_lock:
+            control.project_id=project['id']
+            active_generations[project['id']]=control
     try:
-        run_with_timeout(cancel_event,create_video_project,OUTPUT,topic)
-    finally:
-        generation_lock.release()
-
-def revise_worker(project_id, instruction, cancel_event):
-    # 无论修改成功还是失败，都要解除“正在修改”标记。
-    try:
-        run_with_timeout(cancel_event,revise_video_project,OUTPUT,project_id,instruction)
+        run_with_timeout(control,create_video_project,OUTPUT,topic,on_project_created=register_project)
     finally:
         with revision_lock:
-            active_revisions.discard(project_id)
+            project_id=control.project_id
+            if project_id and active_generations.get(project_id) is control:
+                if control.action=='delete':
+                    try:
+                        delete_project(OUTPUT,project_id)
+                    except (ProjectError,OSError):
+                        try:
+                            project=load_project(OUTPUT,project_id)
+                            project['deletion_error']='任务已停止，但文件删除失败；请重试删除。'
+                            save_project(OUTPUT,project)
+                        except (ProjectError,OSError):
+                            pass
+                active_generations.pop(project_id,None)
+        generation_lock.release()
+
+def revise_worker(project_id, instruction, control):
+    # 无论修改成功还是失败，都要解除“正在修改”标记。
+    try:
+        run_with_timeout(control,revise_video_project,OUTPUT,project_id,instruction)
+    finally:
+        with revision_lock:
+            active_revisions.pop(project_id,None)
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -149,6 +174,22 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('Host') != f'127.0.0.1:{PORT}' or self.headers.get('Origin') != f'http://127.0.0.1:{PORT}':
             return self.reply_json(403,{'error':'无效请求来源'})
         path=urlsplit(self.path).path
+        if path.startswith('/api/pause/'):
+            project_id=path.removeprefix('/api/pause/')
+            try:
+                with revision_lock:
+                    project=load_project(OUTPUT,project_id)
+                    control=active_revisions.get(project_id)
+                    if not control or project.get('status')!='revising':
+                        return self.reply_json(409,{'error':'修改已完成或不在运行，无法暂停'})
+                    with control.lock:
+                        if control.committed:
+                            return self.reply_json(409,{'error':'修改已完成，无法暂停'})
+                        control.action='pause'
+                        control.cancel_event.set()
+            except (ProjectError,ValueError):
+                return self.reply_json(404,{'error':'作品不存在'})
+            return self.reply_json(202,{'message':'正在取消修改并保留上一版视频'})
         if path != '/api/generate' and not path.startswith('/api/revise/'):
             return self.reply_json(404,{'error':'页面不存在'})
         try:
@@ -161,16 +202,20 @@ class Handler(BaseHTTPRequestHandler):
                 instruction=payload.get('instruction','').strip()
                 project_id=path.removeprefix('/api/revise/')
                 if not instruction or len(instruction)>500: raise ValueError()
-                # 在锁内检查状态并登记任务，避免同一作品同时修改和删除。
+                # 在锁内检查状态并登记任务，避免同一作品并发修改或删除。
                 with revision_lock:
                     if project_id in active_revisions:
                         return self.reply_json(409,{'error':'作品正在修改'})
                     project=load_project(OUTPUT,project_id)
                     if project['status'] != 'complete':
                         return self.reply_json(409,{'error':'作品尚未完成或正在修改'})
-                    active_revisions.add(project_id)
-                cancel_event=threading.Event()
-                threading.Thread(target=revise_worker,args=(project_id,instruction,cancel_event),daemon=True).start()
+                    control=OperationControl()
+                    active_revisions[project_id]=control
+                try:
+                    threading.Thread(target=revise_worker,args=(project_id,instruction,control),daemon=True).start()
+                except Exception:
+                    with revision_lock: active_revisions.pop(project_id,None)
+                    raise
                 return self.reply_json(202,{'message':'正在修改，原视频会保留'})
             topic=payload.get('topic','').strip()
             if not topic or len(topic)>150: raise ValueError()
@@ -180,8 +225,8 @@ class Handler(BaseHTTPRequestHandler):
             # 有生成任务时直接返回409，不让第二个任务静默排队。
             return self.reply_json(409,{'error':'已有视频正在生成，请等待完成'})
         try:
-            cancel_event=threading.Event()
-            threading.Thread(target=generation_worker,args=(topic,cancel_event),daemon=True).start()
+            control=OperationControl()
+            threading.Thread(target=generation_worker,args=(topic,control),daemon=True).start()
         except Exception:
             generation_lock.release()
             raise
@@ -196,11 +241,19 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts)!=3 or parts[:2]!=['api','projects']:
             return self.reply_json(404,{'error':'页面不存在'})
         try:
-            # 只有完成或失败的作品可删除；锁防止和修改线程竞争。
+            # 生成中先发取消信号；等待线程退出后再删目录，避免产生孤儿文件。
             with revision_lock:
                 project=load_project(OUTPUT,parts[2])
-                if parts[2] in active_revisions or project.get('status') in ('new','planning_search','researching','writing','classifying','rendering','revising'):
-                    return self.reply_json(409,{'error':'作品正在生成或修改，暂时不能删除'})
+                generation=active_generations.get(parts[2])
+                if generation:
+                    with generation.lock:
+                        generation.action='delete'
+                        generation.cancel_event.set()
+                    return self.reply_json(202,{'message':'正在停止任务，结束后自动删除作品'})
+                if parts[2] in active_revisions or project.get('status')=='revising':
+                    return self.reply_json(409,{'error':'修改中请使用“暂停修改”，完成后可删除作品'})
+                if project.get('status') in ('new','planning_search','researching','writing','classifying','rendering'):
+                    return self.reply_json(409,{'error':'生成任务正在启动，请稍后重试删除'})
                 delete_project(OUTPUT,parts[2])
         except ProjectError as exc:
             return self.reply_json(404,{'error':str(exc)})
