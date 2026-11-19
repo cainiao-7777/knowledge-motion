@@ -17,7 +17,7 @@ from src.language import to_simplified
 from src.cancellation import OperationCancelled, check_cancelled
 
 # 可用 KNOWLEDGE_MUSIC 覆盖本地配乐路径；默认指向用户指定的歌曲。
-DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC','用户本地配乐文件'))
+DEFAULT_MUSIC=Path(os.environ.get('KNOWLEDGE_MUSIC',''))
 
 def create_video_project(root, topic, cancel_event=None, operation_control=None, on_project_created=None):
     # 这是新作品的总流程：来源 → 大模型分镜 → 小模型布局 → 节奏 → 视频。
