@@ -1,4 +1,4 @@
-"""Local-only web interface for the work-in-progress video generator."""
+"""Local-only web interface for the knowledge video generator."""
 import json
 import re
 import shutil
@@ -284,6 +284,7 @@ def recover_interrupted_projects():
 if __name__=='__main__':
     # 直接运行 python app.py 时启动本机开发服务器。
     # 上次进程中断后，线程无法恢复；先收尾遗留的活动状态。
+    server = ThreadingHTTPServer(('127.0.0.1',PORT),Handler)
     recover_interrupted_projects()
     print(f'知识动画工作台：http://127.0.0.1:{PORT}',flush=True)
-    ThreadingHTTPServer(('127.0.0.1',PORT),Handler).serve_forever()
+    server.serve_forever()

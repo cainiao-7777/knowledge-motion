@@ -1,69 +1,66 @@
-# 知识动画工作台
+# 赛博图书馆 · 知识大赏
 
-将一句中文主题转换为无旁白知识视频的实习项目。当前是**开发中的原型**：已经接通公开资料检索、百炼大模型、本地小模型分镜分类、文字图形渲染、背景音乐、节奏点和合成音效；尚不能保证生成效果达到参考作品。知识内容、资料来源、音效和画面均需人工检查。
+Windows x64 桌面应用，版本 **1.0.0**，已完工并可安装。输入一句中文主题，应用会提炼搜索词、检索公开资料、编排分镜，让本机小模型为每幕选择布局，再把字幕、图形和配乐合成为 MP4。完成后可以查看来源、提出修改，或在本地馆藏中检索作品。
 
-## 运行条件
+## 安装桌面版
 
-- Windows、Python 3.13，安装 `requirements.txt` 中的 Python 包；FFmpeg 和 FFprobe 在 PATH 中。
-- 阿里云百炼按量 API Key 在用户环境变量 `DASHSCOPE_API_KEY` 中；默认模型 `qwen4-max`，可用 `BAILIAN_MODEL` 指定。确认北京地域、模型免费额度及“免费额度用完即停”后再使用。不要把密钥写到代码或发送给他人。支持 `BAILIAN_BASE_URL` 指定同地域兼容接口的 Base URL。
-- Ollama 服务运行，默认使用 `modelscope.cn/unsloth/Qwen3.5-0.8B-GGUF:latest` 做镜头类别预测；可用 `SMALL_MODEL` 覆盖。小模型目前只做提示词适配，**没有宣称微调**。
-- 默认背景音乐为 `用户本地配乐文件`；在另一台电脑运行时用环境变量 `KNOWLEDGE_MUSIC` 指定本地文件。音乐版权及使用范围由使用者核实；音乐不随项目分发。
-- 资料检索会查询 DuckDuckGo 网页搜索与维基百科；书籍主题还会查询 Open Library。搜索词也会发送到 Google 自动补全以纠正/扩展关键词；外部搜索结果只作资料线索，生成前会附来源链接，重要事实仍需人工核查。网络不可用时会显示检索错误。
+1. 已拿到安装包的用户，双击 `KnowledgeMotion-1.0.0-Windows-x64-Setup.exe`。它会为当前 Windows 用户安装程序，并创建开始菜单和桌面快捷方式。安装版内含 Python 及应用所需的 Python 库。
+2. 只有 GitHub 源码的用户，可按下文「从源码启动」直接使用，或按「制作安装包」在本机生成同一安装程序。安装包没有上传到 GitHub Releases。
+3. 配置下面的模型和配乐后，从开始菜单打开「赛博图书馆」。它会启动本机服务和独立的 Edge 创作窗口。找不到 Edge 时使用默认浏览器。关闭创作窗口后，可从桌面控制台重新打开。退出整个应用请关闭控制台。
 
-## 启动
+## 首次配置
 
-在项目文件夹打开 PowerShell：
+| 准备项 | 怎么做 |
+| --- | --- |
+| FFmpeg | 在 PowerShell 执行 `winget install --id Gyan.FFmpeg -e`，重新打开终端，执行 `ffmpeg -version` 确认可用。 |
+| 本机小模型 | 安装 [Ollama for Windows](https://ollama.com/download/windows) 并启动。执行 `ollama list`。默认标签是 `modelscope.cn/unsloth/Qwen3.5-0.8B-GGUF:latest`。若标签尚未下载，执行 `ollama pull modelscope.cn/unsloth/Qwen3.5-0.8B-GGUF:latest`。已有其他可用的 Qwen 0.8B 模型时，将用户环境变量 `SMALL_MODEL` 填为 Ollama 列出的完整标签。应用通过本机 11434 端口访问 Ollama。 |
+| 云端大模型 | 在百炼开通模型，并在 Windows 搜索「编辑帐户的环境变量」，新建用户变量 `DASHSCOPE_API_KEY`，值填入自己的密钥。默认模型 ID 为 `qwen4-max`。按账号权限可通过 `BAILIAN_MODEL` 覆盖。默认北京地址 `https://dashscope.aliyuncs.com/compatible-mode/v1`，其他地域可设置 `BAILIAN_BASE_URL`。生成、修改会消耗百炼额度，请先在控制台查看额度和计费设置。 |
+| 本地配乐 | 准备有权使用的音乐文件。新建用户变量 `KNOWLEDGE_MUSIC`，值填入音乐的完整路径，如 `D:\Music\我的配乐.mp3`。音乐不包含在安装包中。 |
+| 中文字体 | Windows 需有微软雅黑或黑体，供视频字幕渲染使用。 |
+
+设置完变量后退出桌面控制台并重新启动。资料检索需要联网。主题和检索词会发往搜索服务，主题、检索摘要或修改意见会发往百炼。密钥、配乐、模型权重和个人作品应只保存在本机。
+
+## 使用与作品管理
+
+输入主题，点「开始生成」，在「作品馆藏」看进度。成片可拖动进度条，可查看资料清单。生成时的「删除任务」会停止后续操作，在线程结束后清理文件。修改时的「暂停修改」会保留修改前的成片和分镜，成功提交的新版本会成为当前成片。自动超时门槛为 5 分钟，已发送的网络请求可能要等到响应或请求自身超时才结束。请核对成片中的知识表述与实际来源。
+
+- **桌面版作品目录**为 `%LOCALAPPDATA%\KnowledgeMotion\projects`，可用控制台的「查看本地作品文件」打开。每个作品有独立目录，包含 `project.json`、`sources.md`，成功生成后有 `video.mp4`。修改成功可能产生历史 MP4。
+- **从旧网页版迁移**时，先退出旧服务。在首次启动前，将旧仓库 `outputs\projects` 中的作品子目录复制到桌面版作品目录。也可设置用户变量 `KNOWLEDGE_PROJECTS` 指向旧的 `outputs\projects` 完整路径，直接使用原来的馆藏。避免两个服务同时写同一馆藏。
+- **升级**时关闭桌面控制台，备份作品目录，再运行新版安装包并选择同一安装位置。**卸载**时在 Windows「设置 → 应用 → 已安装的应用」找到「赛博图书馆」。作品单独存储，卸载后仍可备份或手动删除。工作台里的「删除作品」会永久删除该作品的视频、来源和历史。
+
+## 从源码启动
+
+在已装 Git 和 64 位 Python 3.13 的 Windows 上打开 PowerShell，执行以下命令，再完成上面的首次配置。
 
 ```powershell
-python -m pip install -r requirements.txt
-python app.py
+git clone https://github.com/cainiao-7777/knowledge-motion.git
+cd knowledge-motion
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe desktop.py
 ```
 
-在浏览器打开 `http://127.0.0.1:8765/`。输入主题点击生成，等待状态变成“已完成”；作品和来源清单保存在 `outputs/projects/`。每次生成、修改均会调用百炼并消耗额度，具体用量以百炼控制台为准。系统会使用本机现有的用户环境变量；设置完成后若未识别，请重新打开终端。
+也可用同一解释器执行 `app.py`，在浏览器中打开 `http://127.0.0.1:8765/`。这一路径将作品写入仓库的 `outputs/projects/`。桌面版和网页版使用同一端口，每次启动其中一个即可。
 
-## 主要模块
+## 制作安装包
 
-- `app.py` 和 `web/index.html`：本机网页、任务提交和作品展示。
-- `src/research.py`：查找并记录来源；结果是检索摘要，不等于事实已经核实。
-- `src/generator.py`：调用百炼 `qwen4-max`，把结果解析为分镜；`src/storyboard.py` 检查标题、时长与数据。
-- `src/classifier.py`：本地小模型选择概念、对比、流程或总结画面，结果需用数据集测试。
-- `src/beats.py`、`src/timeline.py`：粗略估计音乐中的低频强调点并调整分镜时间，不保证精确击中鼓点。
-- `src/render.py`、`src/audio.py`：绘制文字图形、合成转场、音乐和短音效，导出 MP4。
-- `src/projects.py` 和 `src/pipeline.py`：保存作品状态、来源和修改记录，安排生成步骤。
-
-## 验证
+先完成「从源码启动」中的 Python 环境安装。安装 [Inno Setup 6.7.3](https://jrsoftware.org/isinfo.php)，非商业用途可使用其免费构建器。在仓库根目录执行以下命令，并按实际安装位置修改 `ISCC.exe` 路径。
 
 ```powershell
-python -m unittest discover -s tests -v
-python -m evaluation.classification
-python -m evaluation.download_ceval
-python -m evaluation.ceval
+.\.venv\Scripts\python.exe -m pip install PyInstaller==6.22.3
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python .\.venv\Scripts\python.exe -Iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
-第二条调用本机小模型；第三条下载公开样本；第四条调用百炼并消耗额度。数据来源和试验限制见 `data/README.md`。模型输出并不保证准确；请在最终提交前自行核验事实和完整观看试听。
+生成物位于 `outputs/release/KnowledgeMotion-1.0.0-Windows-x64-Setup.exe`。构建脚本打包桌面入口、工作台网页、运行库、使用说明、MIT 许可证和第三方运行组件许可文本。FFmpeg、Ollama、模型与配乐由用户自行配置。安装包保存在本机，仓库没有 GitHub Release。
 
-## 当前限制
+## 常见问题
 
-动态效果和视觉模板仍较简单，不能达到参考片逐镜精修的质量；仅支持几类基础图形。小模型未微调，自编分镜分类试验和 C-Eval 题目样本很小，不能代表整体效果。自动画风、来源质量、音效和节拍同步还需更多主题与人工评审；报错时不会自动改用付费服务。系统仍在开发，不代表已完成实习任务。
+- **提示 8765 端口被占用**：切回运行中的控制台，或在启动旧版的终端按 Ctrl+C，随后重开应用。
+- **提示小模型调用失败**：确认 Ollama 已启动，`ollama list` 能看到与 `SMALL_MODEL` 完全相同的标签。
+- **百炼调用失败**：核对密钥地域、模型权限和余额。修改环境变量后重新启动程序。
+- **找不到音乐或 FFmpeg**：在资源管理器中打开配乐文件确认路径有效，再用新终端执行 `ffmpeg -version`。
+- **安装后馆藏为空**：在控制台查看实际作品目录，并按上面的迁移步骤导入旧作品。
 
-## 本地视频和磁盘占用
+[代码逐块说明](docs/code-explanation.md) · [评估记录及样本限制](docs/evaluation.md) · [数据来源](data/README.md)
 
-生成视频保存在 `outputs/projects/<作品编号>/video.mp4`；资料清单为同目录的 `sources.md`，修改前版本以 `video-before-edit-<序号>.mp4` 保存。视频和历史版本不会提交到 GitHub，但会持续占用本机磁盘；可在文件资源管理器中查看或自行删除不需要的项目文件夹。删除项目文件夹会同时删除对应视频、来源记录和历史版本。当前演示期间 `outputs/projects` 约占用 12.3 MB，实际随视频时长和数量增加。网页播放器提供浏览器原生控制，并另有可拖动的时间滑杆。
-
-## 超时提示
-
-生成或修改运行满 5 分钟后，后台会发出取消信号。正在渲染的视频进程和音乐分析进程会被终止；网页或模型请求正在等待响应时，会在该请求返回或自身超时后停止后续步骤。新生成的作品会标记为“已取消（超时）”；修改任务会取消本次修改并保留原视频。若程序意外关闭，重启时会把残留的运行状态收尾，已有成片和原视频会保留。
-
-资料检索先清理指令，再融合 DuckDuckGo 网页、维基百科与书目来源；Google 自动补全和常见同音字只用于扩展搜索词，不作为引用。普通主题会混合百科与网页来源，含中英文混写的人名则优先精确匹配条目。模糊候选仍需核实身份。
-
-生成文案采用讲述者口吻：主题知识直接讲清，不在视频字幕中出现“我查到、资料显示、根据搜索结果”等检索过程用语。来源链接作为单独清单保存。
-
-如果大模型遗漏非事实性的画面描述，程序会用该幕主文字与本片视觉隐喻补齐，并在作品卡片提示；标题、主文字、资料事实等关键内容校验失败时仍会停止生成。
-
-作品列表支持按主题、分镜和来源搜索，每页显示6条；生成中的任务可在确认后取消并删除，修改中的作品可暂停本次修改并保留上一版，已完成或失败的作品可在确认后删除。详细模块说明见 `docs/code-explanation.md`。
-
-项目核心源码已添加中文旁注（Python `#`、JavaScript `//`、HTML/CSS 注释），用于说明模块边界、关键分支和数据流；完整讲解见 `docs/code-explanation.md`。
-
-新作品会先调用 qwen4-max 把用户的一句话拆成核心主题和2–4个搜索关键词，再用这些词搜索网页、百科和书目。检索计划会保存在本地项目记录，来源链接也会单独保存。
-
-新作品启动后先进入“提炼搜索词”阶段：qwen4-max 从一句话抽出主题和2–4个查询词，再用于网页检索；规划结果保存在项目记录。规划失败时会记录原因并回退到本地关键词提取。
+项目自有代码采用 [MIT 许可证](LICENSE)。第三方运行组件的许可原文随安装包置于 `THIRD_PARTY_NOTICES` 目录，摘要见 [第三方许可说明](THIRD_PARTY_NOTICES.md)。公开数据集、外部模型、音乐及检索资料适用各自的许可。

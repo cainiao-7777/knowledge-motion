@@ -108,7 +108,7 @@ web/index.html 表单
 
 ## 10. 运行方式
 
-在项目目录运行 `python app.py`，浏览器打开 `http://127.0.0.1:8765/`。依赖见 `requirements.txt`。作品视频和修改历史保存在 `outputs/projects/`；代码在私有 GitHub 的 `feat/knowledge-video` 分支。
+源码用户可按根目录 README 安装依赖后运行 `python desktop.py`。桌面版启动本地服务并打开 Edge 应用窗口，作品默认保存到 `%LOCALAPPDATA%\KnowledgeMotion\projects`。Windows 安装包由 `packaging/build.ps1` 调用 PyInstaller 和 Inno Setup 构建。安装、配置、数据迁移和卸载见根目录 README。
 
 
 ## 11. 本地作品搜索、分页和删除
